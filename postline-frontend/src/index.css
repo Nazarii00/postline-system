@@ -1,1 +1,8 @@
 @import "tailwindcss";
+
+@theme {
+  --color-pine: #1B3022;
+  --color-pine-light: #31572C;
+  --color-pine-accent: #4F772D;
+  --color-gold: #D4AF37;
+}
