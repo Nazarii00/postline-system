@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 const AuuthButtons = () => {
     return ( 
         <div className="flex items-center gap-4">
-            {/* Кнопка Увійти — тепер Link */}
             <Link 
                 to="/auth" 
                 state={{ mode: 'login' }}
@@ -12,7 +11,6 @@ const AuuthButtons = () => {
                 Увійти
             </Link>
 
-            {/* Кнопка Реєстрація — тепер Link */}
             <Link 
                 to="/auth" 
                 state={{ mode: 'register' }}

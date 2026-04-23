@@ -1,3 +1,4 @@
+
 import HeroSection from "../../components/home/HeroSection";
 import ServicesSection from "../../components/home/ServicesSection";
 
@@ -22,7 +23,7 @@ const HomePage = () => {
             </div>
         </div>
 
-        <div className="bg-pine py-12 text-center">
+        <div className="bg-pine py-16 text-center">
           <p className="text-white/80 text-sm font-medium tracking-widest uppercase">
             Більше 500 відділень по всій країні
           </p>

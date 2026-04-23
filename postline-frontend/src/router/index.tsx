@@ -2,19 +2,135 @@ import { createBrowserRouter } from 'react-router-dom'
 import PublicLayout from '../components/layout/PublicLayout'
 import HomePage from '../pages/public/HomePage'
 import AuthPage from '../pages/public/AuthPage'
+import ClientDashboard from '../pages/client/ClientDashboard'
+import TrackingPage from '../pages/public/TrackingPage'
+import TariffsPage from '../pages/public/TariffsPage'
+import BranchesPage from '../pages/public/BranchesPage'
+import NewShipmentPage from '../pages/operator/NewShipmentPage'
+import OperatorLayout from '../components/layout/OperatorLayout'
+import NotificationsPage from '../pages/client/NotificationPage'
+import ProfilePage from '../pages/client/ProfilePage'
+import StatusChangePage from '../pages/operator/StatusChangePage'
+import OperatorShipmentsPage from '../pages/operator/OperatorShipmentsPage'
+import CourierDeliveryPage from '../pages/operator/CourierDeliveryPage'
+import RoutesPage from '../pages/operator/RoutesPage'
+import AdminLayout from '../components/layout/AdminLayout'
+import OverviewPage from '../pages/admin/OverviewPage'
+import OperatorsPage from '../pages/admin/OperatorsPage'
+import OfficesPage from '../pages/admin/OfficesPage'
+import ReportsPage from '../pages/admin/ReportsPage'
+import AllShipmentsPage from '../pages/admin/AllShipmentsPage'
+import ControlTariffsPage from '../pages/admin/ControlTarrifsPage'
+import ClientLayout from '../components/layout/ClientLayout'
+import ShipmentDetailPage from '../pages/client/ShipmentDetailPage'
 
 export const router = createBrowserRouter([
   {
+    path: '/',
     element: <PublicLayout/>,
     children: [
       { 
-        path: '/',      
+        index: true,      
         element: <HomePage /> 
       },
       { 
-        path: '/auth', 
+        path: 'auth', 
         element: <AuthPage /> 
       },
+      {
+        path: 'tracking',
+        element: <TrackingPage />
+      },
+      {
+        path: 'tariffs',
+        element: <TariffsPage />
+      },
+      {
+        path: 'branches',
+        element: <BranchesPage/>
+      }
     ],
   },
+  {
+    path: '/client',
+    element: <ClientLayout />,
+    children: [
+      {
+        index: true,
+        element: <ClientDashboard/>
+      },
+      {
+        path: 'tracking',
+        element: <TrackingPage />
+      },
+      {
+        path: 'notifications',
+        element: <NotificationsPage />
+      },
+      {
+        path: 'profile',
+        element: <ProfilePage />
+      },
+      {
+        path: 'shipment/:id',
+        element: <ShipmentDetailPage />
+      }
+    ],
+  },
+  {
+    path: '/operator',
+    element: <OperatorLayout />,
+    children: [
+    {
+      index: true,
+      element: <OperatorShipmentsPage/>
+    },
+    {
+      path: 'new-shipment',
+      element: <NewShipmentPage />
+    },
+    {
+      path: 'status-change',
+      element: <StatusChangePage/>
+    },
+    {
+      path: 'courier-delivery',
+      element: <CourierDeliveryPage/>
+    },
+    {
+      path: 'routes',
+      element: <RoutesPage />
+    },
+  ],
+  },
+  {
+    path: '/admin',
+    element: <AdminLayout />,
+    children: [
+      {
+        index: true,
+        element: <OverviewPage />
+      },
+      {
+        path: 'operators',
+        element: <OperatorsPage />
+      },
+      {
+        path: 'offices',
+        element: <OfficesPage />
+      },
+      {
+        path: 'tariffs',
+        element: <ControlTariffsPage />
+      },
+      {
+        path: 'reports',
+        element: <ReportsPage />
+      },
+      {
+        path: 'shipments',
+        element: <AllShipmentsPage />
+      }
+    ]
+  }
 ])
