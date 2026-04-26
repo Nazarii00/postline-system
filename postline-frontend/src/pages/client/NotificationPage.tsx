@@ -1,10 +1,4 @@
-/* AI STYLE AUDIT
-- Заголовок (`text-xl`) надто малий відносно еталона; підняти ієрархію до рівня `text-3xl/4xl font-black tracking-tight`.
-- Використання hex `#1a362d` замінити на дизайн-токен `pine` (`bg-pine`, `hover:text-pine`) для консистентності з HomePage.
-- Головний контейнер `max-w-4xl` надто вузький; еталон орієнтується на ширший `max-w-7xl` і більш "повітряний" макет.
-- Картки сповіщень уніфікувати з еталоном: `rounded-2xl/3xl`, м'які border/shadow, без зайвих дрібних контрастних акцентів.
-- Перевірити мобільні відступи (`px-4`) і вертикальний ритм, щоб відповідати секційному патерну HomePage.
-*/
+
 import { useState } from 'react';
 import { Package, Bell, CheckCircle, Clock } from 'lucide-react';
 

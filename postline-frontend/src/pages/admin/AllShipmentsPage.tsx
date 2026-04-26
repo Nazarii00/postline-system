@@ -1,36 +1,95 @@
+import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   Filter,
   ChevronRight,
   Package,
-  MoreHorizontal,
-  Calendar
+  Calendar,
 } from 'lucide-react';
+import { api } from '../../services/api';
+import type { Shipment } from '../../types/shipment';
+
+const STATUS_LABELS: Record<string, string> = {
+  accepted: 'Прийнято',
+  sorting: 'На сортуванні',
+  in_transit: 'В дорозі',
+  arrived: 'У відділенні',
+  ready_for_pickup: 'Готове до видачі',
+  delivered: 'Доставлено',
+  returned: 'Повернуто',
+  cancelled: 'Скасовано',
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  letter: 'Лист',
+  parcel: 'Посилка',
+  package: 'Бандероль',
+};
+
+const getStatusStyle = (status: string) => {
+  switch (status) {
+    case 'delivered':
+      return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+    case 'in_transit':
+      return 'bg-pine/10 text-pine border-pine/20';
+    case 'accepted':
+    case 'sorting':
+    case 'arrived':
+      return 'bg-amber-50 text-amber-600 border-amber-100';
+    case 'cancelled':
+      return 'bg-red-50 text-red-500 border-red-100';
+    case 'returned':
+      return 'bg-orange-50 text-orange-500 border-orange-100';
+    default:
+      return 'bg-slate-50 text-slate-500 border-slate-100';
+  }
+};
+
+const PAGE_SIZE = 20;
 
 const AllShipmentsPage = () => {
-  const isLoading = false;
-  const shipments = [
-    { id: "PL-2026-00120", sender: "Олександр В.", receiver: "Дмитро П.", route: "Львів → Київ", date: "20.04.2026", status: "Доставлено", type: "Посилка" },
-    { id: "PL-2026-00121", sender: "Марія К.", receiver: "Анна С.", route: "Київ → Одеса", date: "20.04.2026", status: "В дорозі", type: "Бандероль" },
-    { id: "PL-2026-00122", sender: "Ігор М.", receiver: "Олег Т.", route: "Дніпро → Львів", date: "19.04.2026", status: "Очікує", type: "Лист" },
-    { id: "PL-2026-00123", sender: "ТОВ 'Вектор'", receiver: "Петро О.", route: "Харків → Київ", date: "19.04.2026", status: "Скасовано", type: "Посилка" },
-  ];
-  const displayedShipments = shipments;
+  const navigate = useNavigate();
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
-  const getStatusStyle = (status: string) => {
-    switch(status) {
-      case 'Доставлено': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
-      case 'В дорозі': return 'bg-pine/10 text-pine border-pine/20';
-      case 'Очікує': return 'bg-amber-50 text-amber-600 border-amber-100';
-      case 'Скасовано': return 'bg-red-50 text-red-500 border-red-100';
-      default: return 'bg-slate-50 text-slate-500 border-slate-100';
+  useEffect(() => {
+    api.get<{ data: Shipment[] }>('/shipments')
+      .then((res) => setShipments(res.data))
+      .catch(() => setError('Не вдалося завантажити відправлення'))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const filtered = useMemo(() => {
+    let result = [...shipments];
+
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
+      result = result.filter((s) =>
+        s.tracking_number.toLowerCase().includes(lower) ||
+        s.sender_name?.toLowerCase().includes(lower) ||
+        s.receiver_name?.toLowerCase().includes(lower)
+      );
     }
-  };
+
+    if (statusFilter !== 'all') {
+      result = result.filter((s) => s.status === statusFilter);
+    }
+
+    return result;
+  }, [shipments, searchTerm, statusFilter]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <main className="min-h-screen bg-slate-100">
       <section className="max-w-7xl mx-auto w-full px-6 md:px-10 py-10 space-y-8">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 min-h-[104px]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
               Реєстр відправлень
@@ -45,82 +104,115 @@ const AllShipmentsPage = () => {
               <Search size={18} className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-pine transition-colors" />
               <input
                 type="text"
-                placeholder="Номер ТТН, ПІБ або телефон..."
-                className="pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:border-pine outline-none shadow-sm transition-all w-full sm:w-96"
+                placeholder="Номер ТТН або ПІБ..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:border-pine outline-none shadow-sm transition-all w-full sm:w-80"
               />
             </div>
-            <button className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-2xl font-semibold hover:bg-slate-50 hover:border-slate-300 transition-colors text-sm shadow-sm">
-              <Filter size={18} />
-              <span>Фільтри</span>
-            </button>
+            <div className="relative">
+              <Filter size={18} className="absolute left-4 top-3.5 text-slate-400" />
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-medium outline-none focus:border-pine shadow-sm appearance-none cursor-pointer"
+              >
+                <option value="all">Всі статуси</option>
+                {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
+
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl font-medium">
+            {error}
+          </div>
+        )}
 
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden hover:border-slate-300 transition-all">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider">Інформація</th>
-                  <th className="px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider">Учасники</th>
-                  <th className="px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider">Маршрут / Дата</th>
-                  <th className="px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider">Статус</th>
-                  <th className="px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Дії</th>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  {['Інформація', 'Учасники', 'Маршрут / Дата', 'Статус', 'Дії'].map((h, i) => (
+                    <th key={h} className={`px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider ${i === 4 ? 'text-right' : ''}`}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-10 text-sm text-slate-500 text-center">Завантаження відправлень...</td>
+                    <td colSpan={5} className="px-6 py-10 text-sm text-slate-500 text-center">
+                      Завантаження відправлень...
+                    </td>
                   </tr>
-                ) : displayedShipments.length === 0 ? (
+                ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-10 text-sm text-slate-500 text-center">Відправлень за обраними умовами не знайдено.</td>
+                    <td colSpan={5} className="px-6 py-10 text-sm text-slate-500 text-center">
+                      Відправлень за обраними умовами не знайдено.
+                    </td>
                   </tr>
-                ) : displayedShipments.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50/70 transition-colors group cursor-pointer">
+                ) : paginated.map((s) => (
+                  <tr
+                    key={s.id}
+                    onClick={() => navigate(`/admin/shipment/${s.id}`)}
+                    className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
+                  >
                     <td className="px-6 py-6">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-pine/10 flex items-center justify-center text-pine">
                           <Package size={20} />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 tracking-tight text-base">{s.id}</p>
-                          <p className="text-xs font-semibold text-slate-500 uppercase mt-1">{s.type}</p>
+                          <p className="font-bold text-slate-900 tracking-tight text-base">
+                            {s.tracking_number}
+                          </p>
+                          <p className="text-xs font-semibold text-slate-500 uppercase mt-1">
+                            {TYPE_LABELS[s.shipment_type] ?? s.shipment_type}
+                          </p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-6">
                       <div className="space-y-2.5">
                         <p className="text-sm font-medium text-slate-700 flex items-center gap-2.5">
-                          <span className="w-2 h-2 rounded-full bg-slate-300"></span> {s.sender}
+                          <span className="w-2 h-2 rounded-full bg-slate-300" /> {s.sender_name}
                         </p>
                         <p className="text-sm font-medium text-slate-700 flex items-center gap-2.5">
-                          <span className="w-2 h-2 rounded-full bg-pine"></span> {s.receiver}
+                          <span className="w-2 h-2 rounded-full bg-pine" /> {s.receiver_name}
                         </p>
                       </div>
                     </td>
                     <td className="px-6 py-6">
                       <div className="flex flex-col gap-1.5">
-                        <span className="text-sm font-semibold text-slate-900">{s.route}</span>
+                        <span className="text-sm font-semibold text-slate-900">
+                          {s.origin_city} to {s.dest_city}
+                        </span>
                         <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
-                          <Calendar size={14} className="text-slate-400" /> {s.date}
+                          <Calendar size={14} className="text-slate-400" />
+                          {new Date(s.created_at).toLocaleDateString('uk-UA')}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-6">
                       <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${getStatusStyle(s.status)}`}>
-                        {s.status}
+                        {STATUS_LABELS[s.status] ?? s.status}
                       </span>
                     </td>
                     <td className="px-6 py-6 text-right">
-                      <div className="flex justify-end items-center gap-3">
-                        <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all">
-                          <MoreHorizontal size={20} />
-                        </button>
-                        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:border-pine/20 group-hover:bg-pine/5 group-hover:text-pine transition-all">
-                          <ChevronRight size={20} />
-                        </div>
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:border-pine/20 group-hover:bg-pine/5 group-hover:text-pine transition-all ml-auto">
+                        <ChevronRight size={20} />
                       </div>
                     </td>
                   </tr>
@@ -130,12 +222,37 @@ const AllShipmentsPage = () => {
           </div>
 
           <div className="px-6 py-5 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
-            <p className="text-xs font-semibold text-slate-500">Показано 1-4 з 1,248 відправлень</p>
+            <p className="text-xs font-semibold text-slate-500">
+              Показано {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}-{Math.min(page * PAGE_SIZE, filtered.length)} з {filtered.length} відправлень
+            </p>
             <div className="flex gap-2">
-              <button className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors cursor-not-allowed">Назад</button>
-              <button className="w-9 h-9 flex items-center justify-center text-sm font-semibold text-pine border border-pine/20 rounded-xl bg-pine/5 shadow-sm">1</button>
-              <button className="w-9 h-9 flex items-center justify-center text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">2</button>
-              <button className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Далі</button>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors disabled:cursor-not-allowed"
+              >
+                Назад
+              </button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-9 h-9 flex items-center justify-center text-sm font-semibold rounded-xl transition-colors ${
+                    page === p
+                      ? 'text-pine border border-pine/20 bg-pine/5 shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || totalPages === 0}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:text-slate-300"
+              >
+                Далі
+              </button>
             </div>
           </div>
         </div>

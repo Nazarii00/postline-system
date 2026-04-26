@@ -1,6 +1,11 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { createUser, findUserByEmail, findUserById } = require("../repositories/users.repository");
+const {
+  createUser,
+  findUserByEmail,
+  findUserById,
+  updateUser,
+} = require("../repositories/users.repository");
 
 const pickPublicUser = (user) => ({
   id: user.id,
@@ -80,4 +85,22 @@ const getProfile = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getProfile };
+const updateProfile = async (req, res, next) => {
+  try {
+    const { fullName, phone, email } = req.body;
+    const user = await updateUser(req.user.sub, { fullName, phone, email });
+
+    if (!user) {
+      return res.status(404).json({ message: "РљРѕСЂРёСЃС‚СѓРІР°С‡Р° РЅРµ Р·РЅР°Р№РґРµРЅРѕ" });
+    }
+
+    return res.status(200).json({ user: pickPublicUser(user) });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Email Р°Р±Рѕ С‚РµР»РµС„РѕРЅ РІР¶Рµ РІРёРєРѕСЂРёСЃС‚РѕРІСѓС”С‚СЊСЃСЏ" });
+    }
+    return next(error);
+  }
+};
+
+module.exports = { register, login, getProfile, updateProfile };

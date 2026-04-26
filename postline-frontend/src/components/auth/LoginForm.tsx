@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../services/api";
+import { useAuthStore } from "../../store/authStore";
+import type { User } from "../../types/user";
 
 const sanitizeEmail = (value: string) => {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9@._+-]/g, "");
@@ -12,11 +14,12 @@ const sanitizeEmail = (value: string) => {
 
 type LoginResponse = {
   token: string;
-  user: { role: string };
+  user: User;
 };
 
 const LoginForm = () => {
   const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -33,14 +36,12 @@ const LoginForm = () => {
 
     try {
       const data = await api.post<LoginResponse>("/auth/login", { email, password });
-
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      setAuth(data.user, data.token);
 
       const role = data.user.role;
       if (role === "admin") navigate("/admin");
       else if (role === "operator") navigate("/operator");
-      else if (role === "courier") navigate("/courier");
+      else if (role === "courier") navigate("/operator/courier-delivery");
       else navigate("/client");
 
     } catch (err: unknown) {

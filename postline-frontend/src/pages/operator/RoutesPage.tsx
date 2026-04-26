@@ -1,344 +1,370 @@
-/* AI STYLE AUDIT
-- Зменшити кількість сильних декоративних ефектів (sticky panel, dashed timeline, численні анімації): еталон HomePage візуально спокійніший.
-- Привести заголовок/опис до стандарту HomePage: менше технічного noise, більше чистої типографічної ієрархії.
-- Кнопки станів (`amber`, `black`, `rose`) залишати лише як семантичні винятки; базовий action має бути в `pine`.
-- Уніфікувати радіуси: `rounded-[32px]` та `rounded-[28px]` привести до еталонних `rounded-3xl/2xl` для консистентності системи.
-- Перевірити mobile UX drag-and-drop списку: у еталоні блоки адаптуються м'якше, без перевантаження інтерактивом.
-*/
-import { useState, useRef } from 'react';
-import { 
-  Route, 
-  GripVertical, 
-  MapPin, 
-  Truck, 
-  CheckCircle, 
-  AlertCircle, 
-  RefreshCcw, 
-  
-} from 'lucide-react';
-
-// --- ТИПИ ---
-type RouteStatus = 'planning' | 'active' | 'results' | 'finished';
-
-interface ShipmentNode {
-  id: string;
-  address: string;
-  customer: string;
-  coords?: { lat: number; lng: number }; // Req15
-  deliveryResult?: 'delivered' | 'failed' | null; // Req18
-  failReason?: string;
-  nextAction?: 'retry' | 'pickup';
-}
-
-const initialShipments: ShipmentNode[] = [
-  { id: 'PL-501', address: 'вул. Хрещатик, 22', customer: 'Іваненко І.І.' },
-  { id: 'PL-502', address: 'вул. Велика Васильківська, 100', customer: 'Петренко О.М.' },
-  { id: 'PL-503', address: 'проспект Перемоги, 45', customer: 'Сидоренко В.В.' },
-  { id: 'PL-504', address: 'Подільський узвіз, 8', customer: 'Коваленко А.А.' },
-];
+import { useState, useEffect, useRef } from 'react';
+import { Route, MapPin, Plus, ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
+import { api } from '../../services/api';
+import type { Department } from '../../types/departments';
+import type { RouteSummary, RouteStop } from '../../types/routes';
 
 const RoutesPage = () => {
-  const [status, setStatus] = useState<RouteStatus>('planning');
-  const [route, setRoute] = useState<ShipmentNode[]>(initialShipments);
-  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [routes, setRoutes] = useState<RouteSummary[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [expandedRoute, setExpandedRoute] = useState<number | null>(null);
 
-  // Рефи для Drag and Drop (Req17)
+  const [isCreating, setIsCreating] = useState(false);
+  const [startDeptId, setStartDeptId] = useState('');
+  const [endDeptId, setEndDeptId] = useState('');
+  const [distanceKm, setDistanceKm] = useState('');
+  const [estTimeHours, setEstTimeHours] = useState('');
+  const [stops, setStops] = useState<{ departmentId: string; distanceFromPrev: string }[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Drag and drop для зупинок.
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
-  // --- ЛОГІКА Req15 & Req16: Оптимізація ---
-  const handleOptimize = () => {
-    setIsOptimizing(true);
-    setTimeout(() => {
-      const optimizedRoute = [...route].map((item, index) => ({
-        ...item,
-        coords: { lat: 50.45 + index * 0.01, lng: 30.52 + index * 0.01 }
-      })).sort((a, b) => a.id.localeCompare(b.id));
-      
-      setRoute(optimizedRoute);
-      setIsOptimizing(false);
-    }, 1200);
+  useEffect(() => {
+    Promise.all([
+      api.get<{ data: RouteSummary[] }>('/routes'),
+      api.get<{ data: Department[] }>('/departments'),
+    ])
+      .then(([routesRes, deptsRes]) => {
+        setRoutes(routesRes.data);
+        setDepartments(deptsRes.data);
+      })
+      .catch(() => setError('Не вдалося завантажити дані'))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const loadRouteStops = async (routeId: number) => {
+    if (expandedRoute === routeId) {
+      setExpandedRoute(null);
+      return;
+    }
+
+    try {
+      const res = await api.get<{ data: RouteSummary & { stops: RouteStop[] } }>(`/routes/${routeId}`);
+      setRoutes((prev) =>
+        prev.map((route) => (route.id === routeId ? { ...route, stops: res.data.stops } : route))
+      );
+      setExpandedRoute(routeId);
+    } catch {
+      setError('Не вдалося завантажити зупинки');
+    }
   };
 
-  // --- ЛОГІКА Req17: Drag and Drop ---
-  const handleDragStart = (e: React.DragEvent, index: number) => {
+  const handleAddStop = () => {
+    setStops((prev) => [...prev, { departmentId: '', distanceFromPrev: '' }]);
+  };
+
+  const handleRemoveStop = (index: number) => {
+    setStops((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleStopChange = (
+    index: number,
+    field: 'departmentId' | 'distanceFromPrev',
+    value: string
+  ) => {
+    setStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, [field]: value } : stop)));
+  };
+
+  const handleDragStart = (_: React.DragEvent, index: number) => {
     dragItem.current = index;
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '0.4';
-    }
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '1';
-    }
-    
+  const handleDragEnd = () => {
     if (dragItem.current !== null && dragOverItem.current !== null) {
-      const _route = [...route];
-      const draggedItemContent = _route.splice(dragItem.current, 1)[0];
-      _route.splice(dragOverItem.current, 0, draggedItemContent);
-      setRoute(_route);
+      const newStops = [...stops];
+      const dragged = newStops.splice(dragItem.current, 1)[0];
+      newStops.splice(dragOverItem.current, 0, dragged);
+      setStops(newStops);
     }
     dragItem.current = null;
     dragOverItem.current = null;
   };
 
-  // --- ЛОГІКА Req18: Типобезпечне оновлення (БЕЗ ANY) ---
-  const updateResult = <K extends keyof ShipmentNode>(
-    index: number, 
-    field: K, 
-    value: ShipmentNode[K]
-  ) => {
-    setRoute(prev => {
-      const newRoute = [...prev];
-      const updatedNode = { ...newRoute[index], [field]: value };
+  const handleCreate = async () => {
+    if (!startDeptId || !endDeptId) return;
+    setIsSubmitting(true);
 
-      // Очищення полів при успішній доставці
-      if (field === 'deliveryResult' && value === 'delivered') {
-        delete updatedNode.failReason;
-        delete updatedNode.nextAction;
-      }
+    try {
+      await api.post('/routes', {
+        startDeptId: Number(startDeptId),
+        endDeptId: Number(endDeptId),
+        distanceKm: distanceKm ? Number(distanceKm) : null,
+        estTimeHours: estTimeHours ? Number(estTimeHours) : null,
+        stops: stops
+          .filter((stop) => stop.departmentId)
+          .map((stop) => ({
+            departmentId: Number(stop.departmentId),
+            distanceFromPrev: stop.distanceFromPrev ? Number(stop.distanceFromPrev) : null,
+          })),
+      });
 
-      newRoute[index] = updatedNode;
-      return newRoute;
-    });
+      const res = await api.get<{ data: RouteSummary[] }>('/routes');
+      setRoutes(res.data);
+      setIsCreating(false);
+      setStartDeptId('');
+      setEndDeptId('');
+      setDistanceKm('');
+      setEstTimeHours('');
+      setStops([]);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Помилка при створенні маршруту');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const allResultsFilled = route.every(r => 
-    r.deliveryResult === 'delivered' || 
-    (r.deliveryResult === 'failed' && r.failReason && r.nextAction)
-  );
+  const handleDelete = async (routeId: number) => {
+    try {
+      await api.delete(`/routes/${routeId}`);
+      setRoutes((prev) => prev.filter((route) => route.id !== routeId));
+    } catch {
+      setError('Помилка при видаленні маршруту');
+    }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto w-full space-y-8 animate-in fade-in duration-700 pb-12 px-4">
-      
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="max-w-4xl mx-auto w-full space-y-8 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-            <Route className="text-pine" size={36} /> Планування
+            <Route className="text-pine" size={32} /> Маршрути
           </h1>
-          <p className="text-slate-500 text-sm mt-2 font-medium">
-            Управління логістикою та кур'єрськими листами
+          <p className="text-slate-500 text-sm mt-2">
+            Транспортні маршрути між відділеннями
           </p>
         </div>
-        
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-2xl border border-slate-200">
-           <div className={`w-2 h-2 rounded-full animate-pulse ${status === 'active' ? 'bg-amber-500' : 'bg-pine'}`} />
-           <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{status}</span>
-        </div>
+        <button
+          onClick={() => setIsCreating((prev) => !prev)}
+          className="flex items-center gap-2 px-6 py-3 bg-pine text-white rounded-2xl font-bold text-sm hover:bg-pine/90 transition-all"
+        >
+          <Plus size={18} /> Новий маршрут
+        </button>
       </div>
 
-      {/* CONTROL PANEL */}
-      <div className="bg-white/90 backdrop-blur-xl p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6 sticky top-6 z-30 ring-1 ring-black/5">
-        <div className="space-y-1">
-          <h2 className="text-lg font-black text-slate-800 leading-none">
-            {status === 'planning' && 'Формування черги'}
-            {status === 'active' && 'Маршрут виконується'}
-            {status === 'results' && 'Обробка результатів'}
-            {status === 'finished' && 'Звіт сформовано'}
-          </h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">
-            {status === 'planning' && 'Впорядкуйте зупинки кур\'єра'}
-            {status === 'active' && 'Список заблоковано для редагування'}
-            {status === 'results' && 'Вкажіть статус для кожної ТТН'}
-            {status === 'finished' && 'Всі дані внесені в систему'}
-          </p>
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl font-medium">
+          {error}
         </div>
+      )}
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          {status === 'planning' && (
-            <>
-              <button 
-                onClick={handleOptimize}
-                disabled={isOptimizing}
-                className="flex-1 md:flex-none px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-2xl transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest disabled:opacity-50"
+      {isCreating && (
+        <div className="bg-white p-6 rounded-3xl border border-pine/20 shadow-sm space-y-6">
+          <h2 className="text-lg font-black text-slate-800">Новий маршрут</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-slate-500 font-black mb-2">
+                Відправлення з <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={startDeptId}
+                onChange={(e) => setStartDeptId(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
               >
-                {isOptimizing ? <RefreshCcw className="animate-spin" size={16} /> : <MapPin size={16} />}
-                Оптимізувати
-              </button>
-              <button 
-                onClick={() => setStatus('active')}
-                className="flex-1 md:flex-none px-6 py-3.5 bg-pine hover:bg-pine/90 text-white font-black rounded-2xl transition-all shadow-lg shadow-pine/20 flex items-center justify-center gap-2 text-xs uppercase tracking-widest active:scale-95"
+                <option value="">Оберіть відділення...</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>{department.city} - {department.address}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-slate-500 font-black mb-2">
+                Прибуття до <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={endDeptId}
+                onChange={(e) => setEndDeptId(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
               >
-                <CheckCircle size={16} /> Підтвердити
+                <option value="">Оберіть відділення...</option>
+                {departments.filter((department) => department.id !== Number(startDeptId)).map((department) => (
+                  <option key={department.id} value={department.id}>{department.city} - {department.address}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-slate-500 font-black mb-2">
+                Відстань (км)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={distanceKm}
+                onChange={(e) => setDistanceKm(e.target.value)}
+                placeholder="540"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-slate-500 font-black mb-2">
+                Орієнтовний час (год)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={estTimeHours}
+                onChange={(e) => setEstTimeHours(e.target.value)}
+                placeholder="6.5"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs uppercase tracking-wider text-slate-500 font-black">
+                Проміжні зупинки
+              </label>
+              <button
+                type="button"
+                onClick={handleAddStop}
+                className="text-xs font-bold text-pine hover:underline flex items-center gap-1"
+              >
+                <Plus size={14} /> Додати зупинку
               </button>
-            </>
-          )}
+            </div>
 
-          {status === 'active' && (
-            <button 
-              onClick={() => setStatus('results')}
-              className="w-full md:w-auto px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 text-xs uppercase tracking-widest active:scale-95"
-            >
-              <Truck size={18} /> Прийняти звіт кур'єра
-            </button>
-          )}
-
-          {status === 'results' && (
-            <button 
-              onClick={() => setStatus('finished')}
-              disabled={!allResultsFilled}
-              className={`w-full md:w-auto px-8 py-3.5 font-black rounded-2xl transition-all text-xs uppercase tracking-widest ${
-                allResultsFilled 
-                  ? 'bg-slate-900 text-white hover:bg-black active:scale-95 shadow-xl' 
-                  : 'bg-slate-100 text-slate-300 cursor-not-allowed border border-slate-200'
-              }`}
-            >
-              Закрити маніфест
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ROUTE LIST */}
-      <div className="relative pl-4 md:pl-10">
-        {/* Connecting Line */}
-        <div className="absolute top-10 bottom-10 left-[34px] md:left-[58px] w-[2px] bg-gradient-to-b from-pine/20 via-slate-200 to-transparent z-0 border-l border-dashed border-slate-300"></div>
-
-        <div className="space-y-6">
-          {route.map((item, index) => (
-            <div 
-              key={item.id}
-              draggable={status === 'planning'}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragEnter={() => (dragOverItem.current = index)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => e.preventDefault()}
-              className={`relative z-10 flex items-start gap-6 group transition-all ${
-                status === 'planning' ? 'cursor-grab active:cursor-grabbing' : ''
-              }`}
-            >
-              {/* Timeline Indicator */}
-              <div className="mt-4 flex-shrink-0 relative">
-                <div className={`w-10 h-10 rounded-2xl border-4 border-white flex items-center justify-center shadow-md transition-all duration-500 ${
-                  status === 'planning' ? 'bg-white text-slate-300 group-hover:text-pine group-hover:scale-110' : 
-                  item.deliveryResult === 'delivered' ? 'bg-emerald-500 text-white rotate-[360deg]' :
-                  item.deliveryResult === 'failed' ? 'bg-rose-500 text-white' :
-                  'bg-pine text-white'
-                }`}>
-                  {status === 'planning' ? <GripVertical size={18} /> : <span className="text-sm font-black">{index + 1}</span>}
+            <div className="space-y-3">
+              {stops.map((stop, index) => (
+                <div
+                  key={index}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnter={() => {
+                    dragOverItem.current = index;
+                  }}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                  className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 cursor-grab"
+                >
+                  <GripVertical size={16} className="text-slate-300 shrink-0" />
+                  <select
+                    value={stop.departmentId}
+                    onChange={(e) => handleStopChange(index, 'departmentId', e.target.value)}
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-pine"
+                  >
+                    <option value="">Відділення...</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>{department.city} - {department.address}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min="0"
+                    value={stop.distanceFromPrev}
+                    onChange={(e) => handleStopChange(index, 'distanceFromPrev', e.target.value)}
+                    placeholder="км від попередньої"
+                    className="w-36 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-pine"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveStop(index)}
+                    className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
 
-              {/* Card */}
-              <div className={`flex-1 bg-white p-6 rounded-[28px] border transition-all duration-300 ${
-                item.deliveryResult === 'delivered' ? 'border-emerald-200 bg-emerald-50/20 shadow-emerald-100/50 shadow-inner' :
-                item.deliveryResult === 'failed' ? 'border-rose-200 bg-rose-50/20' :
-                'border-slate-200 hover:border-pine/30 hover:shadow-xl hover:shadow-slate-200/50'
-              }`}>
-                <div className="flex flex-col lg:flex-row justify-between gap-6">
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <span className="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black tracking-widest uppercase border border-slate-200/50">
-                        {item.id}
-                      </span>
-                      {item.coords && (
-                        <div className="flex items-center gap-1.5 text-pine animate-in fade-in zoom-in">
-                          <div className="w-1.5 h-1.5 bg-pine rounded-full animate-ping" />
-                          <span className="text-[10px] font-black uppercase tracking-tighter">Geo Linked</span>
-                        </div>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setIsCreating(false)}
+              className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all"
+            >
+              Скасувати
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={!startDeptId || !endDeptId || isSubmitting}
+              className="px-6 py-3 bg-pine text-white rounded-2xl font-bold text-sm hover:bg-pine/90 transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? 'Збереження...' : 'Створити маршрут'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="p-12 text-center text-slate-400">Завантаження...</div>
+      ) : routes.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 text-slate-400 font-medium">
+          Маршрутів поки немає
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {routes.map((route) => (
+            <div key={route.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div
+                className="p-6 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-all"
+                onClick={() => loadRouteStops(route.id)}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="p-2.5 bg-pine/5 text-pine rounded-2xl">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <p className="font-black text-slate-800">
+                      {route.start_city} - {route.end_city}
+                    </p>
+                    <div className="flex gap-4 mt-1">
+                      {route.distance_km && (
+                        <span className="text-xs text-slate-400 font-medium">{route.distance_km} км</span>
                       )}
-                    </div>
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight">{item.address}</h3>
-                    <div className="flex items-center gap-2 text-slate-400">
-                       <div className="w-5 h-5 bg-slate-50 rounded-md flex items-center justify-center border border-slate-100">
-                         <CheckCircle size={12} className="text-slate-300" />
-                       </div>
-                       <p className="text-sm font-bold tracking-tight">
-                         Одержувач: <span className="text-slate-600">{item.customer}</span>
-                       </p>
+                      {route.est_time_hours && (
+                        <span className="text-xs text-slate-400 font-medium">~{route.est_time_hours} год</span>
+                      )}
                     </div>
                   </div>
+                </div>
 
-                  {/* ACTION SECTION (Req18) */}
-                  {status === 'results' && (
-                    <div className="w-full lg:w-72 space-y-3 animate-in slide-in-from-right-4">
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => updateResult(index, 'deliveryResult', 'delivered')}
-                          className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                            item.deliveryResult === 'delivered' ? 'bg-emerald-500 border-emerald-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          Вручено
-                        </button>
-                        <button 
-                          onClick={() => updateResult(index, 'deliveryResult', 'failed')}
-                          className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                            item.deliveryResult === 'failed' ? 'bg-rose-500 border-rose-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          Відмова
-                        </button>
-                      </div>
-
-                      {item.deliveryResult === 'failed' && (
-                        <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
-                          <select 
-                            value={item.failReason || ''}
-                            onChange={(e) => updateResult(index, 'failReason', e.target.value)}
-                            className="w-full px-4 py-3 bg-rose-50/50 border border-rose-100 focus:border-rose-300 focus:ring-0 outline-none rounded-xl text-xs font-bold text-rose-900 appearance-none"
-                          >
-                            <option value="" disabled>Оберіть причину...</option>
-                            <option value="Немає на місці">Клієнта немає на місці</option>
-                            <option value="Відмова від отримання">Відмова від отримання</option>
-                            <option value="Помилка в адресі">Помилка в адресі</option>
-                          </select>
-
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => updateResult(index, 'nextAction', 'retry')}
-                              className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase border transition-all ${
-                                item.nextAction === 'retry' ? 'bg-slate-800 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
-                              }`}
-                            >
-                              Повтор завтра
-                            </button>
-                            <button 
-                              onClick={() => updateResult(index, 'nextAction', 'pickup')}
-                              className={`flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase border transition-all ${
-                                item.nextAction === 'pickup' ? 'bg-slate-800 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
-                              }`}
-                            >
-                              Самовивіз
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* FINAL STATUS VIEW */}
-                  {status === 'finished' && item.deliveryResult && (
-                    <div className="flex flex-col justify-center items-end text-right">
-                       {item.deliveryResult === 'delivered' ? (
-                         <div className="flex flex-col items-end gap-1">
-                            <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black tracking-widest flex items-center gap-2">
-                              <CheckCircle size={14} /> УСПІШНО ДОСТАВЛЕНО
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400">14:45 • Підпис отримано</span>
-                         </div>
-                       ) : (
-                         <div className="space-y-1.5">
-                            <span className="px-4 py-2 bg-rose-100 text-rose-700 rounded-xl text-[10px] font-black tracking-widest flex items-center gap-2">
-                              <AlertCircle size={14} /> НЕ ВДАЛОСЯ ВРУЧИТИ
-                            </span>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                              {item.failReason} <span className="text-slate-300 mx-1">|</span> {item.nextAction === 'retry' ? 'ПОВТОРНА СПРОБА' : 'ПОВЕРНЕННЯ'}
-                            </p>
-                         </div>
-                       )}
-                    </div>
-                  )}
-
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(route.id);
+                    }}
+                    className="p-2 text-slate-300 hover:text-rose-500 rounded-xl hover:bg-rose-50 transition-all"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  {expandedRoute === route.id
+                    ? <ChevronUp size={20} className="text-slate-400" />
+                    : <ChevronDown size={20} className="text-slate-400" />
+                  }
                 </div>
               </div>
+
+              {expandedRoute === route.id && route.stops && (
+                <div className="border-t border-slate-100 px-6 pb-6 pt-4">
+                  {route.stops.length === 0 ? (
+                    <p className="text-sm text-slate-400 font-medium">Проміжних зупинок немає</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {route.stops.map((stop, index) => (
+                        <div key={index} className="flex items-center gap-3 text-sm">
+                          <span className="w-6 h-6 rounded-full bg-pine/10 text-pine text-xs font-black flex items-center justify-center shrink-0">
+                            {stop.sequence_order}
+                          </span>
+                          <span className="font-medium text-slate-700">{stop.city} - {stop.address}</span>
+                          {stop.distance_from_prev_km && (
+                            <span className="text-xs text-slate-400 ml-auto">{stop.distance_from_prev_km} км</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
-      </div>
+      )}
     </div>
   );
 };

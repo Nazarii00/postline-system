@@ -50,4 +50,6 @@ const loginValidation = [
   body("password").notEmpty().withMessage("Поле password є обов'язковим"),
 ];
 
-module.exports = { registerValidation, loginValidation };
+const updateProfileValidation = [fullNameRules, emailRules, phoneRules];
+
+module.exports = { registerValidation, loginValidation, updateProfileValidation };

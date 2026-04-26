@@ -1,11 +1,21 @@
-export type Role = 'client' | 'operator' | 'admin'
+export type Role = 'client' | 'operator' | 'courier' | 'admin';
 
 export interface User {
-  id: string
-  fullName: string
-  phone: string
-  email: string
-  role: Role
-  branchId?: string
-  isActive: boolean
+  id: number;
+  fullName: string;
+  phone: string;
+  email: string;
+  role: Role;
+  departmentId: number | null;
+  createdAt: string;
+}
+
+export interface UpdateProfilePayload {
+  fullName: string;
+  phone: string;
+  email: string;
+}
+
+export interface ApiErrorResponse {
+  message: string;
 }

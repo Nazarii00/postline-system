@@ -4,32 +4,37 @@ import { Search, ChevronUp, ChevronDown, ArrowUpDown, Filter } from 'lucide-reac
 import { api } from '../../services/api';
 import type { Shipment } from '../../types/shipment';
 
-// Маппінг статусів БД → українська
 const STATUS_LABELS: Record<string, string> = {
-  accepted:        'Прийнято',
-  sorting:         'На сортуванні',
-  in_transit:      'В дорозі',
-  arrived:         'У відділенні',
-  ready_for_pickup:'Готове до видачі',
-  delivered:       'Доставлено',
-  returned:        'Повернуто',
-  cancelled:       'Скасовано',
+  accepted: 'Прийнято',
+  sorting: 'На сортуванні',
+  in_transit: 'В дорозі',
+  arrived: 'У відділенні',
+  ready_for_pickup: 'Готове до видачі',
+  delivered: 'Доставлено',
+  returned: 'Повернуто',
+  cancelled: 'Скасовано',
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  letter:  'Лист',
-  parcel:  'Посилка',
+  letter: 'Лист',
+  parcel: 'Посилка',
   package: 'Бандероль',
 };
 
 const getStatusBadge = (status: string) => {
   switch (status) {
-    case 'delivered':       return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    case 'in_transit':      return 'bg-amber-100 text-amber-700 border-amber-200';
-    case 'ready_for_pickup':return 'bg-blue-100 text-blue-700 border-blue-200';
-    case 'cancelled':       return 'bg-red-100 text-red-700 border-red-200';
-    case 'returned':        return 'bg-orange-100 text-orange-700 border-orange-200';
-    default:                return 'bg-slate-100 text-slate-700 border-slate-200';
+    case 'delivered':
+      return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    case 'in_transit':
+      return 'bg-amber-100 text-amber-700 border-amber-200';
+    case 'ready_for_pickup':
+      return 'bg-blue-100 text-blue-700 border-blue-200';
+    case 'cancelled':
+      return 'bg-red-100 text-red-700 border-red-200';
+    case 'returned':
+      return 'bg-orange-100 text-orange-700 border-orange-200';
+    default:
+      return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 };
 
@@ -80,15 +85,15 @@ const ClientDashboard = () => {
 
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
-      result = result.filter((s) =>
-        s.tracking_number.toLowerCase().includes(lower) ||
-        s.sender_name?.toLowerCase().includes(lower) ||
-        s.receiver_name?.toLowerCase().includes(lower)
+      result = result.filter((shipment) =>
+        shipment.tracking_number.toLowerCase().includes(lower) ||
+        shipment.sender_name?.toLowerCase().includes(lower) ||
+        shipment.receiver_name?.toLowerCase().includes(lower)
       );
     }
 
     if (statusFilter !== 'all') {
-      result = result.filter((s) => s.status === statusFilter);
+      result = result.filter((shipment) => shipment.status === statusFilter);
     }
 
     if (sortConfig.key) {
@@ -159,11 +164,11 @@ const ClientDashboard = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-black select-none">
                   {[
                     { key: 'tracking_number', label: 'Трекінг-номер' },
-                    { key: 'created_at',      label: 'Дата реєстрації' },
-                    { key: 'sender_name',     label: 'Відправник' },
-                    { key: 'receiver_name',   label: 'Одержувач' },
-                    { key: 'shipment_type',   label: 'Тип' },
-                    { key: 'status',          label: 'Статус' },
+                    { key: 'created_at', label: 'Дата реєстрації' },
+                    { key: 'sender_name', label: 'Відправник' },
+                    { key: 'receiver_name', label: 'Одержувач' },
+                    { key: 'shipment_type', label: 'Тип' },
+                    { key: 'status', label: 'Статус' },
                   ].map(({ key, label }) => (
                     <th
                       key={key}
@@ -180,24 +185,24 @@ const ClientDashboard = () => {
               </thead>
               <tbody>
                 {filteredAndSorted.length > 0 ? (
-                  filteredAndSorted.map((s) => (
+                  filteredAndSorted.map((shipment) => (
                     <tr
-                      key={s.id}
-                      onClick={() => navigate(`/client/shipment/${s.id}`)}
+                      key={shipment.id}
+                      onClick={() => navigate(`/client/shipment/${shipment.id}`)}
                       className="border-b border-slate-100 last:border-0 hover:bg-pine/5 even:bg-slate-50/50 transition-colors group cursor-pointer"
                     >
                       <td className="p-5 font-bold text-pine group-hover:text-emerald-700 transition-colors">
-                        {s.tracking_number}
+                        {shipment.tracking_number}
                       </td>
                       <td className="p-5 text-slate-600 font-medium text-sm">
-                        {new Date(s.created_at).toLocaleDateString('uk-UA')}
+                        {new Date(shipment.created_at).toLocaleDateString('uk-UA')}
                       </td>
-                      <td className="p-5 text-slate-800 font-semibold text-sm">{s.sender_name}</td>
-                      <td className="p-5 text-slate-800 font-semibold text-sm">{s.receiver_name}</td>
-                      <td className="p-5 text-slate-600 text-sm">{TYPE_LABELS[s.shipment_type] ?? s.shipment_type}</td>
+                      <td className="p-5 text-slate-800 font-semibold text-sm">{shipment.sender_name}</td>
+                      <td className="p-5 text-slate-800 font-semibold text-sm">{shipment.receiver_name}</td>
+                      <td className="p-5 text-slate-600 text-sm">{TYPE_LABELS[shipment.shipment_type] ?? shipment.shipment_type}</td>
                       <td className="p-5">
-                        <span className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest rounded-lg border ${getStatusBadge(s.status)}`}>
-                          {STATUS_LABELS[s.status] ?? s.status}
+                        <span className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest rounded-lg border ${getStatusBadge(shipment.status)}`}>
+                          {STATUS_LABELS[shipment.status] ?? shipment.status}
                         </span>
                       </td>
                     </tr>
