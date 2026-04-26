@@ -8,34 +8,41 @@ const {
   changeShipmentStatus,
   cancelShipment,
   getShipmentHistory,
+  getRecentActivity
 } = require("../repositories/shipments.repository");
 
+const { findOrCreateUserByPhone } = require("../repositories/users.repository");
 // Оператор реєструє відправлення
 const createShipmentHandler = async (req, res, next) => {
   try {
     const {
-      senderId, receiverId,
-      originDeptId, destDeptId,
-      tariffId, routeId,
-      shipmentType, sizeCategory,
+      senderPhone, senderName, originDeptId,
+      receiverPhone, receiverName, destDeptId,
+      tariffId, shipmentType, sizeCategory,
       weightKg, lengthCm, widthCm, heightCm,
-      declaredValue, description,
-      senderAddress, receiverAddress,
-      isCourier,
+      declaredValue, description, isCourier,
     } = req.body;
 
+    // Знаходимо або створюємо відправника і одержувача
+    const [sender, receiver] = await Promise.all([
+      findOrCreateUserByPhone({ phone: senderPhone, fullName: senderName }),
+      findOrCreateUserByPhone({ phone: receiverPhone, fullName: receiverName }),
+    ]);
+
     const shipment = await createShipment({
-      senderId, receiverId,
+      senderId: sender.id,
+      receiverId: receiver.id,
       originDeptId, destDeptId,
-      tariffId, routeId,
+      tariffId, routeId: null,
       shipmentType, sizeCategory,
       weightKg, lengthCm, widthCm, heightCm,
       declaredValue, description,
-      senderAddress, receiverAddress,
+      senderAddress: sender.full_name,
+      receiverAddress: receiver.full_name,
       isCourier: isCourier || false,
     });
 
-    return res.status(201).json({ data: shipment, message: "Відправлення успішно зареєстровано" });
+    return res.status(201).json({ data: shipment, message: 'Відправлення успішно зареєстровано' });
   } catch (error) {
     return next(error);
   }
@@ -157,6 +164,15 @@ const getShipmentHistoryHandler = async (req, res, next) => {
   }
 };
 
+const getActivityHandler = async (req, res, next) => {
+  try {
+    const rows = await getRecentActivity(); // ← напряму, не через shipmentRepository
+    res.json({ data: rows });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createShipmentHandler,
   getShipmentHandler,
@@ -165,4 +181,5 @@ module.exports = {
   changeStatusHandler,
   cancelShipmentHandler,
   getShipmentHistoryHandler,
+  getActivityHandler,
 };

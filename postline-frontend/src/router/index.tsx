@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import PublicLayout from '../components/layout/PublicLayout'
+import ProtectedRoute from '../components/auth/ProtectedRoute'
 import HomePage from '../pages/public/HomePage'
 import AuthPage from '../pages/public/AuthPage'
 import ClientDashboard from '../pages/client/ClientDashboard'
@@ -53,7 +54,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/client',
-    element: <ClientLayout />,
+    element: <ProtectedRoute element={<ClientLayout />} allowedRoles={['client']} />,
     children: [
       {
         index: true,
@@ -79,7 +80,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/operator',
-    element: <OperatorLayout />,
+    element: <ProtectedRoute element={<OperatorLayout />} allowedRoles={['operator', 'courier']} />,
     children: [
     {
       index: true,
@@ -105,7 +106,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/admin',
-    element: <AdminLayout />,
+    element: <ProtectedRoute element={<AdminLayout />} allowedRoles={['admin']} />,
     children: [
       {
         index: true,
@@ -130,6 +131,9 @@ export const router = createBrowserRouter([
       {
         path: 'shipments',
         element: <AllShipmentsPage />
+      },
+      { path: 'shipment/:id', 
+        element: <ShipmentDetailPage /> 
       }
     ]
   }

@@ -12,7 +12,7 @@ const createShipment = ({
   shipmentType, sizeCategory,
   weightKg, lengthCm, widthCm, heightCm,
   declaredValue, description,
-  senderAddress, receiverAddress,
+  senderAddress, receiverAddress, 
   isCourier,
 }) =>
   db.tx(async (client) => {
@@ -193,6 +193,21 @@ const getShipmentHistory = (shipmentId) =>
     [shipmentId]
   );
 
+const getRecentActivity = async (limit = 10) => {
+  // Використовуємо параметризований запит ($1) для безпеки та гнучкості
+  const { rows } = await db.query(
+    `SELECT s.tracking_number, pe.status_set, pe.created_at,
+            u.full_name AS operator_name
+     FROM processing_events pe
+     JOIN shipments s ON s.id = pe.shipment_id
+     LEFT JOIN users u ON u.id = pe.operator_id
+     ORDER BY pe.created_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows;
+};
+
 module.exports = {
   createShipment,
   getShipmentById,
@@ -203,4 +218,5 @@ module.exports = {
   changeShipmentStatus,
   cancelShipment,
   getShipmentHistory,
+  getRecentActivity,
 };

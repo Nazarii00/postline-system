@@ -1,48 +1,47 @@
 const db = require('../db');
 
-const createBranch = ({ name, address, phone, city, latitude, longitude }) =>
+const createDepartment = ({ city, address, type, phone, openingTime, closingTime }) =>
   db.one(
-    `INSERT INTO branches (name, address, phone, city, latitude, longitude)
+    `INSERT INTO departments (city, address, type, phone, opening_time, closing_time)
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [name, address, phone, city, latitude || null, longitude || null]
+    [city, address, type, phone || null, openingTime || null, closingTime || null]
   );
 
-const getBranchById = (id) =>
-  db.one('SELECT * FROM branches WHERE id = $1 AND deleted_at IS NULL', [id]);
+const getDepartmentById = (id) =>
+  db.one('SELECT * FROM departments WHERE id = $1 AND deleted_at IS NULL', [id]);
 
-const getAllBranches = () =>
-  db.many('SELECT * FROM branches WHERE deleted_at IS NULL ORDER BY name ASC', []);
+const getAllDepartments = () =>
+  db.many('SELECT * FROM departments WHERE deleted_at IS NULL ORDER BY city ASC');
 
-const getBranchesByCity = (city) =>
-  db.many('SELECT * FROM branches WHERE city = $1 AND deleted_at IS NULL ORDER BY name ASC', [city]);
+const getDepartmentsByCity = (city) =>
+  db.many(
+    'SELECT * FROM departments WHERE city = $1 AND deleted_at IS NULL ORDER BY address ASC',
+    [city]
+  );
 
-const updateBranch = (id, { name, address, phone, city, latitude, longitude }) =>
+const updateDepartment = (id, { city, address, type, phone, openingTime, closingTime }) =>
   db.one(
-    `UPDATE branches 
-     SET name = COALESCE($2, name),
-         address = COALESCE($3, address),
-         phone = COALESCE($4, phone),
-         city = COALESCE($5, city),
-         latitude = COALESCE($6, latitude),
-         longitude = COALESCE($7, longitude),
-         updated_at = NOW()
+    `UPDATE departments
+     SET city         = COALESCE($2, city),
+         address      = COALESCE($3, address),
+         type         = COALESCE($4::department_type, type),
+         phone        = COALESCE($5, phone),
+         opening_time = COALESCE($6, opening_time),
+         closing_time = COALESCE($7, closing_time)
      WHERE id = $1 AND deleted_at IS NULL
      RETURNING *`,
-    [id, name, address, phone, city, latitude, longitude]
+    [id, city, address, type, phone, openingTime, closingTime]
   );
 
-const deleteBranch = (id) =>
-  db.run(
-    'UPDATE branches SET deleted_at = NOW() WHERE id = $1',
-    [id]
-  );
+const deleteDepartment = (id) =>
+  db.run('UPDATE departments SET deleted_at = NOW() WHERE id = $1', [id]);
 
 module.exports = {
-  createBranch,
-  getBranchById,
-  getAllBranches,
-  getBranchesByCity,
-  updateBranch,
-  deleteBranch,
+  createDepartment,
+  getDepartmentById,
+  getAllDepartments,
+  getDepartmentsByCity,
+  updateDepartment,
+  deleteDepartment,
 };

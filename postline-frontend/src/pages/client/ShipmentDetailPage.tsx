@@ -41,19 +41,19 @@ type ShipmentDetail = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  accepted:         'Прийнято',
-  sorting:          'На сортуванні',
-  in_transit:       'В дорозі',
-  arrived:          'У відділенні',
+  accepted: 'Прийнято',
+  sorting: 'На сортуванні',
+  in_transit: 'В дорозі',
+  arrived: 'У відділенні',
   ready_for_pickup: 'Готове до видачі',
-  delivered:        'Доставлено',
-  returned:         'Повернуто',
-  cancelled:        'Скасовано',
+  delivered: 'Доставлено',
+  returned: 'Повернуто',
+  cancelled: 'Скасовано',
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  letter:  'Лист',
-  parcel:  'Посилка',
+  letter: 'Лист',
+  parcel: 'Посилка',
   package: 'Бандероль',
 };
 
@@ -66,21 +66,31 @@ const SIZE_LABELS: Record<string, string> = {
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'delivered':        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    case 'in_transit':       return 'bg-amber-100 text-amber-700 border-amber-200';
-    case 'ready_for_pickup': return 'bg-blue-100 text-blue-700 border-blue-200';
-    case 'cancelled':        return 'bg-red-100 text-red-700 border-red-200';
-    case 'returned':         return 'bg-orange-100 text-orange-700 border-orange-200';
-    default:                 return 'bg-slate-100 text-slate-700 border-slate-200';
+    case 'delivered':
+      return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    case 'in_transit':
+      return 'bg-amber-100 text-amber-700 border-amber-200';
+    case 'ready_for_pickup':
+      return 'bg-blue-100 text-blue-700 border-blue-200';
+    case 'cancelled':
+      return 'bg-red-100 text-red-700 border-red-200';
+    case 'returned':
+      return 'bg-orange-100 text-orange-700 border-orange-200';
+    default:
+      return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 };
 
 const getTimelineDot = (status: string) => {
   switch (status) {
-    case 'delivered':        return 'bg-emerald-500';
-    case 'cancelled':        return 'bg-red-500';
-    case 'returned':         return 'bg-orange-500';
-    default:                 return 'bg-pine';
+    case 'delivered':
+      return 'bg-emerald-500';
+    case 'cancelled':
+      return 'bg-red-500';
+    case 'returned':
+      return 'bg-orange-500';
+    default:
+      return 'bg-pine';
   }
 };
 
@@ -123,8 +133,6 @@ const ShipmentDetailPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto w-full space-y-6">
-
-      {/* Назад */}
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-slate-500 hover:text-pine transition-colors font-medium"
@@ -133,7 +141,6 @@ const ShipmentDetailPage = () => {
         Назад до списку
       </button>
 
-      {/* Заголовок */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900">{shipment.tracking_number}</h1>
@@ -147,8 +154,6 @@ const ShipmentDetailPage = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-        {/* Відправник і одержувач */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <User size={18} className="text-pine" /> Учасники
@@ -170,7 +175,6 @@ const ShipmentDetailPage = () => {
           </div>
         </div>
 
-        {/* Деталі відправлення */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <Package size={18} className="text-pine" /> Деталі
@@ -190,7 +194,7 @@ const ShipmentDetailPage = () => {
             </div>
             <div>
               <p className="text-slate-400 text-xs uppercase tracking-wider">Габарити</p>
-              <p className="font-medium text-slate-800">{shipment.length_cm}×{shipment.width_cm}×{shipment.height_cm} см</p>
+              <p className="font-medium text-slate-800">{shipment.length_cm}x{shipment.width_cm}x{shipment.height_cm} см</p>
             </div>
             {shipment.declared_value && (
               <div>
@@ -211,7 +215,6 @@ const ShipmentDetailPage = () => {
           )}
         </div>
 
-        {/* Маршрут */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <MapPin size={18} className="text-pine" /> Маршрут
@@ -221,7 +224,7 @@ const ShipmentDetailPage = () => {
               <p className="font-bold text-slate-800">{shipment.origin_city}</p>
               <p className="text-xs text-slate-400">{shipment.origin_address}</p>
             </div>
-            <div className="text-slate-300 font-bold">→</div>
+            <div className="text-slate-300 font-bold">{'->'}</div>
             <div className="flex-1 text-center">
               <p className="font-bold text-slate-800">{shipment.dest_city}</p>
               <p className="text-xs text-slate-400">{shipment.dest_address}</p>
@@ -229,7 +232,6 @@ const ShipmentDetailPage = () => {
           </div>
         </div>
 
-        {/* Вартість */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <CreditCard size={18} className="text-pine" /> Вартість
@@ -240,7 +242,6 @@ const ShipmentDetailPage = () => {
         </div>
       </div>
 
-      {/* Хронологія статусів */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6">
         <h2 className="font-bold text-slate-800 flex items-center gap-2 mb-6">
           <Clock size={18} className="text-pine" /> Хронологія
@@ -251,8 +252,8 @@ const ShipmentDetailPage = () => {
           <div className="relative">
             <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-100" />
             <div className="space-y-4">
-              {history.map((event, i) => (
-                <div key={i} className="relative flex gap-4 pl-10">
+              {history.map((event, index) => (
+                <div key={index} className="relative flex gap-4 pl-10">
                   <div className={`absolute left-0 w-6 h-6 rounded-full border-2 border-white shadow-sm flex items-center justify-center ${getTimelineDot(event.status_set)}`} />
                   <div className="flex-1 pb-4">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -281,7 +282,6 @@ const ShipmentDetailPage = () => {
           </div>
         )}
       </div>
-
     </div>
   );
 };
