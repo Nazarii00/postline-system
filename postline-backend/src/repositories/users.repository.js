@@ -1,8 +1,10 @@
 const db = require('../db');
 
-// ВИПРАВЛЕНО: oneOrNone замість one, щоб не було помилки, якщо юзера не існує
 const findUserByEmail = (email) =>
-  db.oneOrNone('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
+  db.oneOrNone('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+
+const findUserByPhone = (phone) =>
+  db.oneOrNone('SELECT * FROM users WHERE phone = $1', [phone]);
 
 const findUserById = (id) =>
   db.oneOrNone('SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
@@ -15,15 +17,30 @@ const createUser = ({ fullName, phone, email, passwordHash }) =>
     [fullName, phone, email, passwordHash]
   );
 
+const activatePlaceholderClient = (id, { fullName, email, passwordHash }) =>
+  db.oneOrNone(
+    `UPDATE users
+     SET full_name = $2,
+         email = $3,
+         password_hash = $4,
+         deleted_at = NULL
+     WHERE id = $1
+       AND role = 'client'
+       AND COALESCE(password_hash, '') = ''
+     RETURNING *`,
+    [id, fullName, email, passwordHash]
+  );
+
+
 const findOrCreateClient = async (phone, fullName) => {
   const existing = await db.oneOrNone('SELECT id FROM users WHERE phone = $1 LIMIT 1', [phone]);
   if (existing) return existing.id;
 
   const newUser = await db.one(
-    `INSERT INTO users (phone, full_name, role)
-     VALUES ($1, $2, 'client')
+    `INSERT INTO users (phone, full_name, email, role, password_hash)
+     VALUES ($1, $2, $3, 'client', '')
      RETURNING id`,
-    [phone, fullName] 
+    [phone, fullName, `${phone}@postline.local`]
   );
   return newUser.id;
 };
@@ -67,8 +84,10 @@ const findOrCreateUserByPhone = async ({ phone, fullName }) => {
   
 module.exports = { 
   findUserByEmail, 
+  findUserByPhone,
   findUserById, 
   createUser, 
+  activatePlaceholderClient,
   findOrCreateClient,
   updateUser,
   updateUserPassword,

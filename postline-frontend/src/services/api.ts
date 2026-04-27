@@ -12,14 +12,18 @@ async function fetcher<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   })
 
-  if (res.status === 401) {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    window.location.href = '/auth'
-  }
-
   if (!res.ok) {
     const error = await res.json().catch(() => ({}))
+
+    if (res.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+
+      if (!path.startsWith('/auth/login') && window.location.pathname !== '/auth') {
+        window.location.href = '/auth'
+      }
+    }
+
     throw new Error(error.message ?? 'Помилка сервера')
   }
 

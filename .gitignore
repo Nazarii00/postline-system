@@ -13,6 +13,7 @@ npm-debug.log*
 variables.env
 postline-backend/.mapbox-quota.json
 postline-backend/.mapbox-quota.json.tmp
+postline-backend/db/*.sql
 
 .vscode/*
 !.vscode/extensions.json

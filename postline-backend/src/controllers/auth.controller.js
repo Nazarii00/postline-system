@@ -1,8 +1,10 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const {
+  activatePlaceholderClient,
   createUser,
   findUserByEmail,
+  findUserByPhone,
   findUserById,
   updateUser,
   updateUserPassword,
@@ -37,6 +39,35 @@ const register = async (req, res, next) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const existingPhoneUser = await findUserByPhone(phone);
+    if (existingPhoneUser) {
+      if (existingPhoneUser.deleted_at) {
+        return res.status(403).json({ message: "Акаунт з таким телефоном деактивовано" });
+      }
+
+      const canActivatePlaceholder =
+        existingPhoneUser.role === "client"
+        && !existingPhoneUser.password_hash
+        && existingPhoneUser.email?.endsWith("@postline.local");
+
+      if (!canActivatePlaceholder) {
+        return res.status(409).json({ message: "Email або телефон вже використовується" });
+      }
+
+      const activated = await activatePlaceholderClient(existingPhoneUser.id, {
+        fullName,
+        email,
+        passwordHash,
+      });
+
+      if (!activated) {
+        return res.status(409).json({ message: "Email або телефон вже використовується" });
+      }
+
+      const token = signToken(activated);
+      return res.status(201).json({ user: pickPublicUser(activated), token });
+    }
+
     const user = await createUser({ fullName, phone, email, passwordHash });
 
     const token = signToken(user);

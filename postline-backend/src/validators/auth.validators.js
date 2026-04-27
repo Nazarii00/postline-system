@@ -62,7 +62,11 @@ const newPasswordRules = body("newPassword")
 const registerValidation = [fullNameRules, emailRules, phoneRules, roleRules, passwordRules];
 
 const loginValidation = [
-  body("email").trim().notEmpty().withMessage("Поле email є обов'язковим").isEmail().withMessage("Некоректний формат email"),
+  body("email")
+    .trim()
+    .notEmpty().withMessage("Поле email є обов'язковим")
+    .isEmail().withMessage("Некоректний формат email")
+    .normalizeEmail(),
   body("password").notEmpty().withMessage("Поле password є обов'язковим"),
 ];
 
