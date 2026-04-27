@@ -62,7 +62,6 @@ const OverviewPage = () => {
   return (
     <main className="min-h-screen bg-slate-100">
       <section className="max-w-7xl mx-auto w-full px-6 md:px-10 py-10 space-y-8">
-
         <div className="space-y-3 min-h-[104px] flex flex-col justify-end">
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">
             Огляд системи
@@ -82,7 +81,6 @@ const OverviewPage = () => {
             <NetworkStatus departments={departments} isLoading={isLoading} />
           </div>
         </div>
-
       </section>
     </main>
   );

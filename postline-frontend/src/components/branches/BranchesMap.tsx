@@ -1,31 +1,139 @@
-import { MapPin, Navigation } from 'lucide-react';
+import { useEffect, useMemo } from 'react';
+import { divIcon, latLngBounds } from 'leaflet';
+import { MapPin } from 'lucide-react';
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import { type Branch } from '../../types/branches';
 
-export const BranchesMap = () => (
-  <div className="flex-1 bg-slate-200 rounded-3xl border border-slate-200 shadow-inner relative overflow-hidden flex items-center justify-center min-h-[400px] hover:border-slate-300 transition-all">
-    <div 
-      className="absolute inset-0 opacity-20 pointer-events-none"
-      style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #94a3b8 1px, transparent 0)', backgroundSize: '32px 32px' }} 
-    />
+interface Props {
+  branches: Branch[];
+  selectedBranchId?: number | null;
+  onBranchSelect?: (id: number) => void;
+  isLoading?: boolean;
+  error?: string | null;
+}
 
-    <div className="absolute right-6 bottom-6 flex flex-col gap-2 z-20">
-      <button className="w-12 h-12 bg-white/80 backdrop-blur rounded-2xl shadow-md flex items-center justify-center text-slate-700 hover:text-pine hover:bg-white transition-all font-bold text-xl">+</button>
-      <button className="w-12 h-12 bg-white/80 backdrop-blur rounded-2xl shadow-md flex items-center justify-center text-slate-700 hover:text-pine hover:bg-white transition-all font-bold text-xl">−</button>
-      <button className="w-12 h-12 bg-white/80 backdrop-blur rounded-2xl shadow-md flex items-center justify-center text-slate-700 hover:text-pine hover:bg-white transition-all mt-2">
-        <Navigation size={20} />
-      </button>
-    </div>
+const DEFAULT_CENTER: [number, number] = [49.0275, 31.4828];
 
-    <div className="text-center z-10 p-10 max-w-md bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50">
-      <div className="w-24 h-24 bg-pine/10 rounded-full flex items-center justify-center mx-auto mb-6">
-        <MapPin size={48} className="text-pine" />
+const createBranchIcon = (branch: Branch, isSelected: boolean) =>
+  divIcon({
+    className: '',
+    html: `<div style="width:${isSelected ? 42 : 34}px;height:${isSelected ? 42 : 34}px;border-radius:16px;background:${isSelected ? '#1a362d' : branch.openNow ? '#0f766e' : '#64748b'};color:white;display:flex;align-items:center;justify-content:center;font-weight:900;border:3px solid white;box-shadow:0 10px 24px rgba(15,23,42,.24);font-size:12px;">${branch.number.replace('№', '')}</div>`,
+    iconSize: [isSelected ? 42 : 34, isSelected ? 42 : 34],
+    iconAnchor: [isSelected ? 21 : 17, isSelected ? 21 : 17],
+  });
+
+const BranchMapController = ({
+  branches,
+  selectedBranch,
+}: {
+  branches: Branch[];
+  selectedBranch?: Branch;
+}) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (selectedBranch) {
+      map.flyTo([selectedBranch.lat, selectedBranch.lng], 15, { duration: 0.8 });
+      return;
+    }
+
+    if (branches.length === 1) {
+      map.setView([branches[0].lat, branches[0].lng], 13);
+      return;
+    }
+
+    if (branches.length > 1) {
+      const bounds = latLngBounds(branches.map((branch) => [branch.lat, branch.lng]));
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 12 });
+    }
+  }, [branches, map, selectedBranch]);
+
+  return null;
+};
+
+export const BranchesMap = ({
+  branches,
+  selectedBranchId,
+  onBranchSelect,
+  isLoading,
+  error,
+}: Props) => {
+  const selectedBranch = useMemo(
+    () => branches.find((branch) => branch.id === selectedBranchId),
+    [branches, selectedBranchId]
+  );
+
+  const center: [number, number] = selectedBranch
+    ? [selectedBranch.lat, selectedBranch.lng]
+    : branches[0]
+      ? [branches[0].lat, branches[0].lng]
+      : DEFAULT_CENTER;
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 bg-slate-200 rounded-3xl border border-slate-200 shadow-inner min-h-[400px] animate-pulse" />
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 bg-white rounded-3xl border border-rose-100 shadow-sm min-h-[400px] flex items-center justify-center p-10 text-center">
+        <div>
+          <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <MapPin size={28} />
+          </div>
+          <h3 className="text-xl font-black text-slate-900">Карту не вдалося побудувати</h3>
+          <p className="text-slate-500 text-sm mt-2">{error}</p>
+        </div>
       </div>
-      <h3 className="text-2xl font-bold text-slate-900 mb-3">Інтерактивна карта простору</h3>
-      <p className="text-slate-500 text-base mb-8 leading-relaxed">
-        Тут буде підключено Google Maps або Mapbox API. Маркери автоматично фільтруватимуться відповідно до списку зліва.
-      </p>
-      <button className="flex items-center justify-center gap-2 w-full py-3.5 bg-pine text-white font-bold rounded-2xl hover:bg-pine/90 active:scale-95 transition-all shadow-lg hover:shadow-xl">
-        Завантажити карту
-      </button>
+    );
+  }
+
+  return (
+    <div className="flex-1 rounded-3xl border border-slate-200 shadow-inner relative overflow-hidden min-h-[400px] hover:border-slate-300 transition-all bg-slate-200">
+      <MapContainer center={center} zoom={branches.length ? 12 : 6} scrollWheelZoom={false} className="h-full w-full">
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
+        <BranchMapController branches={branches} selectedBranch={selectedBranch} />
+
+        {branches.map((branch) => {
+          const isSelected = branch.id === selectedBranchId;
+
+          return (
+            <Marker
+              key={branch.id}
+              position={[branch.lat, branch.lng]}
+              icon={createBranchIcon(branch, isSelected)}
+              eventHandlers={{
+                click: () => onBranchSelect?.(branch.id),
+              }}
+            >
+              <Popup>
+                <strong>{branch.name}</strong>
+                <br />
+                {branch.city}, {branch.address}
+                <br />
+                {branch.schedule}
+              </Popup>
+            </Marker>
+          );
+        })}
+      </MapContainer>
+
+      <div className="absolute left-6 top-6 z-[500] bg-white/90 backdrop-blur rounded-3xl shadow-lg border border-white/60 p-5 max-w-sm">
+        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Мережа PostLine</p>
+        <h3 className="text-2xl font-black text-slate-900 mt-1">
+          {branches.length > 0 ? `${branches.length} точок на мапі` : 'Відділень не знайдено'}
+        </h3>
+        <p className="text-sm text-slate-500 mt-2">
+          {selectedBranch
+            ? `${selectedBranch.name}: ${selectedBranch.city}, ${selectedBranch.address}`
+            : 'Оберіть відділення у списку або маркер на мапі, щоб наблизити карту.'}
+        </p>
+      </div>
     </div>
-  </div>
-);
+  );
+};

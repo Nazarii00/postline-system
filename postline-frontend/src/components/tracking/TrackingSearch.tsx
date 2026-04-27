@@ -28,8 +28,8 @@ export const TrackingSearch = ({ searchQuery, isLoading, onSearchChange, onSubmi
           disabled={isLoading}
         />
       </div>
-      <button 
-        type="submit" 
+      <button
+        type="submit"
         disabled={isLoading || !searchQuery.trim()}
         className="px-10 py-4 bg-pine text-white font-bold rounded-2xl hover:bg-pine/90 active:scale-95 transition-all shadow-lg hover:shadow-xl text-lg whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-70"
       >

@@ -98,8 +98,14 @@ const ClientDashboard = () => {
 
     if (sortConfig.key) {
       result.sort((a, b) => {
-        const valA = a[sortConfig.key!];
-        const valB = b[sortConfig.key!];
+        if (sortConfig.key === 'created_at') {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
+        }
+
+        const valA = a[sortConfig.key!] || '';
+        const valB = b[sortConfig.key!] || '';
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;

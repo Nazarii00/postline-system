@@ -4,6 +4,7 @@ const {
   getShipmentByTracking,
   getShipmentsByClient,
   getShipmentsByDepartment,
+  getCourierShipmentsForCurrentDepartment,
   getAllShipments,
   changeShipmentStatus,
   cancelShipment,
@@ -11,7 +12,14 @@ const {
   getRecentActivity
 } = require("../repositories/shipments.repository");
 
-const { findOrCreateUserByPhone } = require("../repositories/users.repository");
+const { findOrCreateUserByPhone, findUserById } = require("../repositories/users.repository");
+const { getRouteByDepartments } = require("../repositories/routes.repository");
+
+const getOperatorDepartmentId = async (operatorId) => {
+  const operator = await findUserById(operatorId);
+  return operator?.department_id ? Number(operator.department_id) : null;
+};
+
 // Оператор реєструє відправлення
 const createShipmentHandler = async (req, res, next) => {
   try {
@@ -20,8 +28,35 @@ const createShipmentHandler = async (req, res, next) => {
       receiverPhone, receiverName, destDeptId,
       tariffId, shipmentType, sizeCategory,
       weightKg, lengthCm, widthCm, heightCm,
-      declaredValue, description, isCourier,
+      declaredValue, description, isCourier, receiverAddress,
     } = req.body;
+
+    const operatorDepartmentId = req.user.role === "operator"
+      ? await getOperatorDepartmentId(req.user.sub)
+      : null;
+    const effectiveOriginDeptId =
+      req.user.role === "operator" ? operatorDepartmentId : Number(originDeptId);
+    const destinationDeptId = Number(destDeptId);
+
+    if (!effectiveOriginDeptId) {
+      return res.status(400).json({ message: "Оператору не призначено відділення" });
+    }
+
+    if (req.user.role === "operator" && Number(originDeptId) !== effectiveOriginDeptId) {
+      return res.status(403).json({ message: "Оператор може створювати відправлення тільки зі свого відділення" });
+    }
+
+    const route = effectiveOriginDeptId === destinationDeptId
+      ? null
+      : await getRouteByDepartments(effectiveOriginDeptId, destinationDeptId);
+
+    if (effectiveOriginDeptId !== destinationDeptId && !route) {
+      return res.status(400).json({ message: "Для цих відділень не призначено маршрут" });
+    }
+
+    if (isCourier && !receiverAddress?.trim()) {
+      return res.status(400).json({ message: "Адреса доставки є обов'язковою для кур'єрської доставки" });
+    }
 
     // Знаходимо або створюємо відправника і одержувача
     const [sender, receiver] = await Promise.all([
@@ -32,13 +67,15 @@ const createShipmentHandler = async (req, res, next) => {
     const shipment = await createShipment({
       senderId: sender.id,
       receiverId: receiver.id,
-      originDeptId, destDeptId,
-      tariffId, routeId: null,
+      originDeptId: effectiveOriginDeptId,
+      destDeptId: destinationDeptId,
+      tariffId,
+      routeId: route?.id || null,
       shipmentType, sizeCategory,
       weightKg, lengthCm, widthCm, heightCm,
       declaredValue, description,
       senderAddress: sender.full_name,
-      receiverAddress: receiver.full_name,
+      receiverAddress: receiverAddress?.trim() || receiver.full_name,
       isCourier: isCourier || false,
     });
 
@@ -77,16 +114,24 @@ const trackShipmentHandler = async (req, res, next) => {
 
 const listShipmentsHandler = async (req, res, next) => {
   try {
-    const { departmentId, status, trackingNumber } = req.query;
-    const { role, sub, departmentId: operatorDeptId } = req.user;
+    const { courierOnly, departmentId, status, trackingNumber } = req.query;
+    const { role, sub } = req.user;
 
     let shipments;
 
     if (role === 'client') {
       shipments = await getShipmentsByClient(sub);
     } else if (role === 'operator') {
-      // Оператор бачить тільки відправлення свого відділення
-      shipments = await getShipmentsByDepartment(operatorDeptId, { status, trackingNumber });
+      const operatorDeptId = await getOperatorDepartmentId(sub);
+      if (!operatorDeptId) {
+        return res.status(400).json({ message: "Оператору не призначено відділення" });
+      }
+
+      shipments = courierOnly === 'true'
+        ? await getCourierShipmentsForCurrentDepartment(operatorDeptId, { trackingNumber })
+        : await getShipmentsByDepartment(operatorDeptId, { status, trackingNumber });
+    } else if (role === 'courier') {
+      shipments = [];
     } else {
       // admin
       shipments = await getAllShipments({ departmentId, status, trackingNumber });
@@ -104,11 +149,18 @@ const changeStatusHandler = async (req, res, next) => {
     const { id } = req.params;
     const { status, notes } = req.body;
     const operatorId = req.user.sub;
-    const departmentId = req.user.departmentId;
 
     const shipment = await getShipmentById(id);
     if (!shipment) {
       return res.status(404).json({ message: "Відправлення не знайдено" });
+    }
+
+    const departmentId = req.user.role === "operator"
+      ? await getOperatorDepartmentId(req.user.sub)
+      : req.user.departmentId || shipment.current_dept_id;
+
+    if (!departmentId) {
+      return res.status(400).json({ message: "Оператору не призначено відділення" });
     }
 
     // Перевірка що відправлення належить відділенню оператора (Req7)

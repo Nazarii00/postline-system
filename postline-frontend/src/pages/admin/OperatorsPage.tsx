@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { UserPlus } from "lucide-react";
 import { api } from '../../services/api';
 import CreateOperatorForm from '../../components/admin/CreateOperatorForm';
+import EditOperatorModal from '../../components/admin/operators/EditOperatorModal';
 import OperatorsTable from '../../components/admin/operators/OperatorsTable';
 import type { Operator, Department } from '../../types/operators';
 
@@ -11,6 +12,7 @@ const OperatorsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingOperator, setEditingOperator] = useState<Operator | null>(null);  // ← додали
 
   const fetchOperators = useCallback(async () => {
     setIsLoading(true);
@@ -29,12 +31,11 @@ const OperatorsPage = () => {
     fetchOperators();
     api.get<{ data: Department[] }>('/departments')
       .then((res) => setDepartments(res.data || []))
-      .catch(() => {}); // Ігноруємо помилку відділень, щоб не блокувати операторів
+      .catch(() => {});
   }, [fetchOperators]);
 
   const handleToggleStatus = async (op: Operator) => {
     if (!window.confirm(`${op.deleted_at ? 'Активувати' : 'Деактивувати'} ${op.full_name}?`)) return;
-
     try {
       await api.delete(`/operators/${op.id}`);
       setOperators((prev) =>
@@ -49,9 +50,8 @@ const OperatorsPage = () => {
     }
   };
 
-  const handleEdit = (op: Operator) => {
-    // Тут в майбутньому можна додати логіку відкриття модалки редагування
-    console.log("Редагувати оператора:", op);
+  const handleEdit = (op: Operator) => {   // ← замінили console.log
+    setEditingOperator(op);
   };
 
   return (
@@ -81,19 +81,20 @@ const OperatorsPage = () => {
           </div>
         )}
 
-        <OperatorsTable 
+        <OperatorsTable
           operators={operators}
           departments={departments}
           isLoading={isLoading}
           onToggleStatus={handleToggleStatus}
           onEdit={handleEdit}
         />
-        
+
       </section>
 
       {isFormOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <CreateOperatorForm
+            departments={departments}
             onCancel={() => setIsFormOpen(false)}
             onSuccess={() => {
               setIsFormOpen(false);
@@ -101,6 +102,18 @@ const OperatorsPage = () => {
             }}
           />
         </div>
+      )}
+
+      {editingOperator && (                          
+        <EditOperatorModal
+          operator={editingOperator}
+          departments={departments}
+          onClose={() => setEditingOperator(null)}
+          onSuccess={() => {
+            setEditingOperator(null);
+            fetchOperators();
+          }}
+        />
       )}
     </main>
   );

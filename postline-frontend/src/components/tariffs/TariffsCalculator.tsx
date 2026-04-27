@@ -46,7 +46,7 @@ export const TariffsCalculator = ({ tariffs }: Props) => {
   };
 
   return (
-    <div className="w-full bg-white/80 backdrop-blur p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all flex flex-col pt-8">
+    <div id="calculator" className="w-full bg-white/80 backdrop-blur p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all flex flex-col pt-8 scroll-mt-24">
       <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-5">
         <div className="p-3 bg-pine/10 text-pine rounded-xl"><Calculator size={22} /></div>
         <h3 className="text-xl font-bold text-slate-900">Швидкий розрахунок</h3>

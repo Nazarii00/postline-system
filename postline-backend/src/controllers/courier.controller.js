@@ -1,15 +1,59 @@
 const {
   createCourierDelivery,
   getCourierDeliveryById,
-  getCourierDeliveriesByShipment,
-  getCourierDeliveriesByCourier,
+  listCourierDeliveries,
   updateCourierDeliveryStatus,
 } = require("../repositories/courier.repository");
+const { getShipmentById } = require("../repositories/shipments.repository");
+const { findUserById } = require("../repositories/users.repository");
+
+const allowedCourierStatusTransitions = {
+  assigned: ["delivered", "failed"],
+  in_progress: ["delivered", "failed"],
+  delivered: [],
+  failed: [],
+};
+
+const getOperatorDepartmentId = async (operatorId) => {
+  const operator = await findUserById(operatorId);
+  return operator?.department_id ? Number(operator.department_id) : null;
+};
+
+const isDeliveryInOperatorDepartment = (delivery, departmentId) =>
+  Number(delivery.current_dept_id) === Number(departmentId)
+  && Number(delivery.dest_dept_id) === Number(departmentId);
 
 const createCourierDeliveryHandler = async (req, res, next) => {
   try {
     const { shipmentId, courierId, toAddress, notes } = req.body;
     const operatorId = req.user.sub;
+
+    const shipment = await getShipmentById(shipmentId);
+    if (!shipment) {
+      return res.status(404).json({ message: "Відправлення не знайдено" });
+    }
+
+    if (!shipment.is_courier) {
+      return res.status(400).json({ message: "Це відправлення не оформлене як кур'єрська доставка" });
+    }
+
+    if (shipment.status !== "ready_for_pickup" || Number(shipment.current_dept_id) !== Number(shipment.dest_dept_id)) {
+      return res.status(400).json({
+        message: "Кур'єра можна призначити тільки після прибуття у кінцеве відділення та статусу ready_for_pickup",
+      });
+    }
+
+    if (req.user.role === "operator") {
+      const operatorDepartmentId = await getOperatorDepartmentId(operatorId);
+      if (!operatorDepartmentId || Number(operatorDepartmentId) !== Number(shipment.dest_dept_id)) {
+        return res.status(403).json({ message: "Відправлення не належить кінцевому відділенню оператора" });
+      }
+    }
+
+    const courier = await findUserById(courierId);
+    if (!courier || courier.role !== "courier") {
+      return res.status(400).json({ message: "Обраного кур'єра не знайдено" });
+    }
 
     const delivery = await createCourierDelivery({
       shipmentId,
@@ -19,7 +63,10 @@ const createCourierDeliveryHandler = async (req, res, next) => {
       notes,
     });
 
-    return res.status(201).json({ data: delivery, message: "Кур'єрська доставка успішно створена" });
+    return res.status(201).json({
+      data: delivery,
+      message: "Кур'єрська доставка успішно створена",
+    });
   } catch (error) {
     return next(error);
   }
@@ -32,6 +79,15 @@ const getCourierDeliveryHandler = async (req, res, next) => {
     if (!delivery) {
       return res.status(404).json({ message: "Кур'єрська доставка не знайдена" });
     }
+    if (req.user.role === "operator") {
+      const operatorDepartmentId = await getOperatorDepartmentId(req.user.sub);
+      if (!operatorDepartmentId || !isDeliveryInOperatorDepartment(delivery, operatorDepartmentId)) {
+        return res.status(403).json({ message: "Кур'єрська доставка не належить відділенню оператора" });
+      }
+    }
+    if (req.user.role === "courier" && delivery.courier_id !== req.user.sub) {
+      return res.status(403).json({ message: "Немає прав для перегляду цієї доставки" });
+    }
     return res.status(200).json({ data: delivery });
   } catch (error) {
     return next(error);
@@ -40,16 +96,22 @@ const getCourierDeliveryHandler = async (req, res, next) => {
 
 const listCourierDeliveriesHandler = async (req, res, next) => {
   try {
-    const { shipmentId, courierId } = req.query;
+    const { shipmentId, courierId, status } = req.query;
+    const effectiveCourierId = req.user.role === "courier" ? req.user.sub : courierId;
+    const departmentId = req.user.role === "operator"
+      ? await getOperatorDepartmentId(req.user.sub)
+      : null;
 
-    let deliveries;
-    if (shipmentId) {
-      deliveries = await getCourierDeliveriesByShipment(shipmentId);
-    } else if (courierId) {
-      deliveries = await getCourierDeliveriesByCourier(courierId);
-    } else {
-      return res.status(400).json({ message: "Вкажіть shipmentId або courierId" });
+    if (req.user.role === "operator" && !departmentId) {
+      return res.status(400).json({ message: "Оператору не призначено відділення" });
     }
+
+    const deliveries = await listCourierDeliveries({
+      shipmentId: shipmentId ? Number(shipmentId) : null,
+      courierId: effectiveCourierId ? Number(effectiveCourierId) : null,
+      status: status || null,
+      departmentId,
+    });
 
     return res.status(200).json({ data: deliveries });
   } catch (error) {
@@ -57,7 +119,6 @@ const listCourierDeliveriesHandler = async (req, res, next) => {
   }
 };
 
-// Оператор вносить результат після повернення кур'єра
 const updateCourierDeliveryStatusHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -68,8 +129,40 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
       return res.status(404).json({ message: "Кур'єрська доставка не знайдена" });
     }
 
+    if (req.user.role === "operator") {
+      const operatorDepartmentId = await getOperatorDepartmentId(req.user.sub);
+      if (!operatorDepartmentId || !isDeliveryInOperatorDepartment(delivery, operatorDepartmentId)) {
+        return res.status(403).json({ message: "Кур'єрська доставка не належить відділенню оператора" });
+      }
+    }
+
+    if (req.user.role === "courier" && delivery.courier_id !== req.user.sub) {
+      return res.status(403).json({ message: "Немає прав для оновлення цієї доставки" });
+    }
+
+    const allowedStatuses = allowedCourierStatusTransitions[delivery.status] || [];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        message: `Недопустима зміна статусу кур'єрської доставки: ${delivery.status} -> ${status}`,
+      });
+    }
+
+    const shipment = await getShipmentById(delivery.shipment_id);
+    if (
+      !shipment
+      || shipment.status !== "ready_for_pickup"
+      || Number(shipment.current_dept_id) !== Number(shipment.dest_dept_id)
+    ) {
+      return res.status(400).json({
+        message: "Результат кур'єрської доставки можна вказати тільки після прибуття посилки у кінцеве відділення",
+      });
+    }
+
     const updated = await updateCourierDeliveryStatus(id, { status, failureReason, notes });
-    return res.status(200).json({ data: updated, message: "Статус доставки оновлено" });
+    return res.status(200).json({
+      data: updated,
+      message: "Статус доставки оновлено",
+    });
   } catch (error) {
     return next(error);
   }

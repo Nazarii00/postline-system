@@ -8,6 +8,7 @@ export interface TrackingHistoryItem {
 }
 
 export interface ParcelData {
+  shipmentId: number;  
   trackingNumber: string;
   registrationDate: string;
   type: string;

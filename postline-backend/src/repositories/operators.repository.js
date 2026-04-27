@@ -1,10 +1,12 @@
 const db = require('../db');
 
+const staffSelect = `id, full_name, email, phone, department_id, role, created_at, deleted_at`;
+
 const createOperator = ({ fullName, email, phone, departmentId, role, passwordHash }) =>
   db.one(
     `INSERT INTO users (full_name, email, phone, department_id, role, password_hash)
      VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, full_name, email, phone, department_id, role, created_at`,
+     RETURNING ${staffSelect}`,
     [fullName, email, phone, departmentId, role || 'operator', passwordHash]
   );
 
@@ -22,40 +24,47 @@ const getUserByEmail = (email) =>
     [email]
   );
 
-const getAllOperators = () =>
+const getAllOperators = (includeInactive = false) =>
   db.many(
-    `SELECT id, full_name, email, phone, department_id, role, created_at
+    `SELECT ${staffSelect}
      FROM users
-     WHERE role IN ('operator', 'courier') AND deleted_at IS NULL
-     ORDER BY full_name ASC`
+     WHERE role IN ('operator', 'courier') ${includeInactive ? '' : 'AND deleted_at IS NULL'}
+     ORDER BY deleted_at NULLS FIRST, full_name ASC`
   );
 
-const getOperatorsByDepartment = (departmentId) =>
+const getOperatorsByDepartment = (departmentId, includeInactive = false) =>
   db.many(
-    `SELECT id, full_name, email, phone, department_id, role, created_at
+    `SELECT ${staffSelect}
      FROM users
-     WHERE department_id = $1 AND role IN ('operator', 'courier') AND deleted_at IS NULL
-     ORDER BY full_name ASC`,
+     WHERE department_id = $1 AND role IN ('operator', 'courier') ${includeInactive ? '' : 'AND deleted_at IS NULL'}
+     ORDER BY deleted_at NULLS FIRST, full_name ASC`,
     [departmentId]
   );
 
-const updateOperator = (id, { fullName, phone, departmentId }) =>
+const updateOperator = (id, { fullName, phone, departmentId, role }) =>
   db.one(
     `UPDATE users
      SET full_name     = COALESCE($2, full_name),
          phone         = COALESCE($3, phone),
-         department_id = COALESCE($4, department_id)
-     WHERE id = $1 AND deleted_at IS NULL
-     RETURNING id, full_name, email, phone, department_id, role, created_at`,
-    [id, fullName, phone, departmentId]
+         department_id = COALESCE($4, department_id),
+         role          = COALESCE($5, role)
+     WHERE id = $1 AND role IN ('operator', 'courier')
+     RETURNING ${staffSelect}`,
+    [id, fullName, phone, departmentId, role]
+  );
+
+const setOperatorStatus = (id, isActive) =>
+  db.one(
+    `UPDATE users
+     SET deleted_at = CASE WHEN $2::boolean THEN NULL ELSE COALESCE(deleted_at, NOW()) END
+     WHERE id = $1 AND role IN ('operator', 'courier')
+     RETURNING ${staffSelect}`,
+    [id, isActive]
   );
 
 // deleted_at замість DELETE (Req21)
 const deactivateOperator = (id) =>
-  db.run(
-    'UPDATE users SET deleted_at = NOW() WHERE id = $1',
-    [id]
-  );
+  setOperatorStatus(id, false);
 
 module.exports = {
   createOperator,
@@ -64,5 +73,6 @@ module.exports = {
   getAllOperators,
   getOperatorsByDepartment,
   updateOperator,
+  setOperatorStatus,
   deactivateOperator,
 };

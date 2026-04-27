@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import type { Role } from '../../types/user';
 
@@ -9,11 +9,18 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ element, allowedRoles }: ProtectedRouteProps) => {
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
 
   if (!token || !user) {
-    return <Navigate to="/auth" replace />;
+    return (
+      <Navigate
+        to="/auth"
+        replace
+        state={{ mode: 'login', from: `${location.pathname}${location.search}` }}
+      />
+    );
   }
 
   if (!allowedRoles.includes(user.role)) {

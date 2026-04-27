@@ -6,8 +6,11 @@ const {
   getAllOperators,
   getOperatorsByDepartment,
   updateOperator,
+  setOperatorStatus,
   deactivateOperator,
 } = require("../repositories/operators.repository");
+
+const isStaffAccount = (user) => ["operator", "courier"].includes(user.role);
 
 const createOperatorHandler = async (req, res, next) => {
   try {
@@ -49,9 +52,10 @@ const getOperatorHandler = async (req, res, next) => {
 const listOperatorsHandler = async (req, res, next) => {
   try {
     const { departmentId } = req.query;
+    const includeInactive = req.user.role === "admin" && req.query.includeInactive !== "false";
     const operators = departmentId
-      ? await getOperatorsByDepartment(departmentId)
-      : await getAllOperators();
+      ? await getOperatorsByDepartment(departmentId, includeInactive)
+      : await getAllOperators(includeInactive);
     return res.status(200).json({ data: operators });
   } catch (error) {
     return next(error);
@@ -61,15 +65,36 @@ const listOperatorsHandler = async (req, res, next) => {
 const updateOperatorHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { fullName, phone, departmentId } = req.body;
+    const { fullName, phone, departmentId, role } = req.body;
 
     const operator = await getUserById(id);
-    if (!operator) {
+    if (!operator || !isStaffAccount(operator)) {
       return res.status(404).json({ message: "Оператора не знайдено" });
     }
 
-    const updated = await updateOperator(id, { fullName, phone, departmentId });
+    const updated = await updateOperator(id, { fullName, phone, departmentId, role });
     return res.status(200).json({ data: updated, message: "Оператора успішно оновлено" });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const updateOperatorStatusHandler = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    const operator = await getUserById(id);
+    if (!operator || !isStaffAccount(operator)) {
+      return res.status(404).json({ message: "Оператора не знайдено" });
+    }
+
+    const updated = await setOperatorStatus(id, isActive);
+    const message = isActive
+      ? "Оператора успішно активовано"
+      : "Оператора успішно деактивовано";
+
+    return res.status(200).json({ data: updated, message });
   } catch (error) {
     return next(error);
   }
@@ -80,12 +105,12 @@ const deactivateOperatorHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
     const operator = await getUserById(id);
-    if (!operator) {
+    if (!operator || !isStaffAccount(operator)) {
       return res.status(404).json({ message: "Оператора не знайдено" });
     }
 
-    await deactivateOperator(id);
-    return res.status(200).json({ message: "Оператора успішно деактивовано" });
+    const updated = await deactivateOperator(id);
+    return res.status(200).json({ data: updated, message: "Оператора успішно деактивовано" });
   } catch (error) {
     return next(error);
   }
@@ -96,5 +121,6 @@ module.exports = {
   getOperatorHandler,
   listOperatorsHandler,
   updateOperatorHandler,
+  updateOperatorStatusHandler,
   deactivateOperatorHandler,
 };

@@ -8,14 +8,14 @@ const {
 } = require("../controllers/departments.controller");
 const { createDepartmentValidation, updateDepartmentValidation } = require("../validators/department.validators");
 const { validate } = require("../middleware/validate.middleware");
-const { authGuard } = require("../middleware/auth.middleware");
+const { authGuard, authorize } = require("../middleware/auth.middleware");
 
 const departmentsRouter = express.Router();
 
 departmentsRouter.get("/", listDepartmentsHandler);
 departmentsRouter.get("/:id", getDepartmentHandler);
-departmentsRouter.post("/", authGuard, createDepartmentValidation, validate, createDepartmentHandler);
-departmentsRouter.patch("/:id", authGuard, updateDepartmentValidation, validate, updateDepartmentHandler);
-departmentsRouter.delete("/:id", authGuard, deleteDepartmentHandler);
+departmentsRouter.post("/", authGuard, authorize("admin"), createDepartmentValidation, validate, createDepartmentHandler);
+departmentsRouter.patch("/:id", authGuard, authorize("admin"), updateDepartmentValidation, validate, updateDepartmentHandler);
+departmentsRouter.delete("/:id", authGuard, authorize("admin"), deleteDepartmentHandler);
 
 module.exports = { departmentsRouter };

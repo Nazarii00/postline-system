@@ -22,7 +22,10 @@ const createShipment = ({
     );
     if (!tariff) throw new Error('Тариф не знайдено');
 
-    const totalCost = parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * weightKg;
+    const declaredValueNum = Number(declaredValue || 0);
+    const courierPrice = isCourier ? 20 : 0;
+    const insurance = declaredValueNum > 500 ? Math.round(declaredValueNum * 0.005) : 0;
+    const totalCost = parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * weightKg + courierPrice + insurance;
     const trackingNumber = generateTrackingNumber();
 
     const { rows: [shipment] } = await client.query(
@@ -91,7 +94,7 @@ const getShipmentByTracking = (trackingNumber) =>
 
 const getShipmentsByClient = (clientId) =>
   db.many(
-    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg,
             sender.full_name   AS sender_name,
             receiver.full_name AS receiver_name,
@@ -110,14 +113,19 @@ const getShipmentsByClient = (clientId) =>
 
 const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {}) =>
   db.many(
-    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
-            sd.shipment_type, sd.weight_kg,
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
+            sd.shipment_type, sd.weight_kg, sd.receiver_address,
             sender.full_name   AS sender_name,
-            receiver.full_name AS receiver_name
+            receiver.full_name AS receiver_name,
+            receiver.phone     AS receiver_phone,
+            origin.city        AS origin_city,
+            dest.city          AS dest_city
      FROM shipments s
      JOIN shipment_details sd ON sd.shipment_id = s.id
      JOIN users sender        ON sender.id = s.sender_id
      JOIN users receiver      ON receiver.id = s.receiver_id
+     JOIN departments origin   ON origin.id = s.origin_dept_id
+     JOIN departments dest     ON dest.id = s.dest_dept_id
      WHERE s.current_dept_id = $1
        AND ($2::shipment_status IS NULL OR s.status = $2::shipment_status)
        AND ($3::varchar IS NULL OR s.tracking_number ILIKE '%' || $3 || '%')
@@ -125,9 +133,43 @@ const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {})
     [departmentId, status || null, trackingNumber || null]
   );
 
-const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
+const getCourierShipmentsForCurrentDepartment = (departmentId, { trackingNumber } = {}) =>
   db.many(
     `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
+            s.origin_dept_id, s.dest_dept_id, s.current_dept_id,
+            sd.shipment_type, sd.weight_kg, sd.receiver_address, sd.is_courier,
+            sender.full_name   AS sender_name,
+            receiver.full_name AS receiver_name,
+            receiver.phone     AS receiver_phone,
+            origin.city        AS origin_city,
+            dest.city          AS dest_city,
+            current.city       AS current_city
+     FROM shipments s
+     JOIN shipment_details sd ON sd.shipment_id = s.id
+     JOIN users sender        ON sender.id = s.sender_id
+     JOIN users receiver      ON receiver.id = s.receiver_id
+     JOIN departments origin   ON origin.id = s.origin_dept_id
+     JOIN departments dest     ON dest.id = s.dest_dept_id
+     LEFT JOIN departments current ON current.id = s.current_dept_id
+     WHERE s.current_dept_id = $1
+       AND s.dest_dept_id = $1
+       AND sd.is_courier = TRUE
+       AND s.status NOT IN ('delivered', 'cancelled', 'returned')
+       AND ($2::varchar IS NULL OR s.tracking_number ILIKE '%' || $2 || '%')
+       AND NOT EXISTS (
+         SELECT 1
+         FROM courier_deliveries cd
+         WHERE cd.shipment_id = s.id
+           AND cd.status IN ('assigned', 'in_progress', 'delivered')
+       )
+     ORDER BY (s.status = 'ready_for_pickup') DESC,
+              s.created_at DESC`,
+    [departmentId, trackingNumber || null]
+  );
+
+const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
+  db.many(
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg,
             sender.full_name   AS sender_name,
             receiver.full_name AS receiver_name,
@@ -149,7 +191,7 @@ const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
 // app.current_user_id потрібен для тригера fn_log_status_change
 const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =>
   db.tx(async (client) => {
-    await client.query(`SET LOCAL app.current_user_id = '${operatorId}'`);
+    await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(operatorId)]);
 
     const { rows: [updated] } = await client.query(
       `UPDATE shipments
@@ -162,9 +204,15 @@ const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =
     // notes в processing_events якщо є
     if (notes) {
       await client.query(
-        `UPDATE processing_events SET notes = $1
-         WHERE shipment_id = $2 AND status_set = $3
-         ORDER BY created_at DESC LIMIT 1`,
+        `UPDATE processing_events
+         SET notes = $1
+         WHERE ctid IN (
+           SELECT ctid
+           FROM processing_events
+           WHERE shipment_id = $2 AND status_set = $3
+           ORDER BY created_at DESC
+           LIMIT 1
+         )`,
         [notes, id, status]
       );
     }
@@ -195,7 +243,7 @@ const getShipmentHistory = (shipmentId) =>
 
 const getRecentActivity = async (limit = 10) => {
   // Використовуємо параметризований запит ($1) для безпеки та гнучкості
-  const { rows } = await db.query(
+  return db.many(
     `SELECT s.tracking_number, pe.status_set, pe.created_at,
             u.full_name AS operator_name
      FROM processing_events pe
@@ -205,7 +253,6 @@ const getRecentActivity = async (limit = 10) => {
      LIMIT $1`,
     [limit]
   );
-  return rows;
 };
 
 module.exports = {
@@ -214,6 +261,7 @@ module.exports = {
   getShipmentByTracking,
   getShipmentsByClient,
   getShipmentsByDepartment,
+  getCourierShipmentsForCurrentDepartment,
   getAllShipments,
   changeShipmentStatus,
   cancelShipment,

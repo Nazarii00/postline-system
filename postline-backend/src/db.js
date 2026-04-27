@@ -31,6 +31,9 @@ const db = {
     const result = await pool.query(text, params);
     return result.rowCount;
   },
+  none: async (text, params) => {
+    await pool.query(text, params);
+  },
   tx: async (callback) => {
     const client = await pool.connect();
     try {

@@ -39,7 +39,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (cachedUser) {
       set({ user: cachedUser, token, isHydrated: true })
-      return
     }
 
     try {
@@ -55,6 +54,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem('user', JSON.stringify(data.user))
       set({ user: data.user, token, isHydrated: true })
     } catch {
+      if (cachedUser) {
+        return
+      }
+
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       set({ user: null, token: null, isHydrated: true })

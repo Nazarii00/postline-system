@@ -7,15 +7,15 @@ const {
 } = require("../controllers/courier.controller");
 const { createCourierDeliveryValidation, updateCourierDeliveryStatusValidation } = require("../validators/courier.validators");
 const { validate } = require("../middleware/validate.middleware");
-const { authGuard } = require("../middleware/auth.middleware");
+const { authGuard, authorize } = require("../middleware/auth.middleware");
 
 const courierRouter = express.Router();
 
 courierRouter.use(authGuard);
 
-courierRouter.post("/", createCourierDeliveryValidation, validate, createCourierDeliveryHandler);
-courierRouter.get("/", listCourierDeliveriesHandler);
-courierRouter.get("/:id", getCourierDeliveryHandler);
-courierRouter.patch("/:id/status", updateCourierDeliveryStatusValidation, validate, updateCourierDeliveryStatusHandler);
+courierRouter.post("/", authorize("admin", "operator"), createCourierDeliveryValidation, validate, createCourierDeliveryHandler);
+courierRouter.get("/", authorize("admin", "operator", "courier"), listCourierDeliveriesHandler);
+courierRouter.get("/:id", authorize("admin", "operator", "courier"), getCourierDeliveryHandler);
+courierRouter.patch("/:id/status", authorize("admin", "operator", "courier"), updateCourierDeliveryStatusValidation, validate, updateCourierDeliveryStatusHandler);
 
 module.exports = { courierRouter };
