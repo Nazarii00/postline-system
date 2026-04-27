@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { User, MapPin } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
@@ -17,9 +18,12 @@ const initialFormState: ShipmentFormData = {
 
 const NewShipmentPage = () => {
   const user = useAuthStore((state) => state.user);
+  const [searchParams] = useSearchParams();
+  const shouldStartWithCourier = searchParams.get('courier') === '1';
+  const isOperatorOriginLocked = user?.role === 'operator';
 
   const [formData, setFormData] = useState<ShipmentFormData>(initialFormState);
-  const [isCourier, setIsCourier] = useState(false);
+  const [isCourier, setIsCourier] = useState(shouldStartWithCourier);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedTracking, setGeneratedTracking] = useState<string | null>(null);
@@ -40,13 +44,21 @@ const NewShipmentPage = () => {
   else if (maxDim > 50) calculatedSize = 'L';
   else if (maxDim > 30) calculatedSize = 'M';
 
+  useEffect(() => {
+    if (shouldStartWithCourier) {
+      setIsCourier(true);
+    }
+  }, [shouldStartWithCourier]);
+
   // Завантаження відділень і автозаповнення для оператора.
   useEffect(() => {
     api.get<{ data: Department[] }>('/departments').then((res) => {
       setDepartments(res.data);
 
-      if (user?.departmentId) {
-        const opDept = res.data.find((d) => d.id === user.departmentId);
+      const operatorDepartmentId = user?.departmentId ? Number(user.departmentId) : null;
+
+      if (operatorDepartmentId) {
+        const opDept = res.data.find((d) => d.id === operatorDepartmentId);
         if (opDept) {
           setFormData((prev) => ({
             ...prev,
@@ -54,10 +66,16 @@ const NewShipmentPage = () => {
             senderBranch: opDept.id.toString(),
           }));
           setOriginDepartments(res.data.filter((d) => d.city === opDept.city));
+        } else {
+          setApiError('До вашого акаунта привʼязане відділення, якого вже немає в активному списку. Зверніться до адміністратора.');
         }
+      } else {
+        setApiError('До вашого акаунта не привʼязане відділення. Зверніться до адміністратора.');
       }
-    }).catch(() => {});
-  }, [user]);
+    }).catch((err: unknown) => {
+      setApiError(err instanceof Error ? err.message : 'Не вдалося завантажити відділення');
+    });
+  }, [user?.departmentId]);
 
   // Фільтрація відділень призначення при зміні міста одержувача.
   useEffect(() => {
@@ -92,6 +110,10 @@ const NewShipmentPage = () => {
   ) => {
     const { name } = e.target;
     let { value } = e.target;
+
+    if (isOperatorOriginLocked && (name === 'senderCity' || name === 'senderBranch')) {
+      return;
+    }
 
     if (name === 'receiverPhone' || name === 'senderPhone') {
       value = value.replace(/[^\d+]/g, '');
@@ -217,6 +239,9 @@ const NewShipmentPage = () => {
   }
 
   const uniqueCities = [...new Set(departments.map((d) => d.city))].sort();
+  const senderCities = isOperatorOriginLocked && formData.senderCity
+    ? [formData.senderCity]
+    : uniqueCities;
 
   return (
     <div className="max-w-6xl mx-auto w-full space-y-8">
@@ -245,8 +270,9 @@ const NewShipmentPage = () => {
               formData={formData}
               onChange={handleChange}
               errors={errors}
-              cities={uniqueCities}
+              cities={senderCities}
               departments={originDepartments}
+              isLocationLocked={isOperatorOriginLocked}
             />
             <ContactSection
               title="Одержувач"

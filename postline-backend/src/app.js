@@ -7,6 +7,7 @@ const { departmentsRouter } = require("./routes/departments.routes"); // ← б�
 const { shipmentRouter } = require("./routes/shipments.routes");
 const { routeRouter } = require("./routes/routes.routes");
 const { courierRouter } = require("./routes/courier.routes");
+const { courierRouteOptimizationRouter } = require("./routes/courierRouteOptimization.routes");
 const { operatorRouter } = require("./routes/operators.routes");
 const { tariffRouter } = require("./routes/tariffs.routes");
 const { trackingRouter } = require("./routes/tracking.routes");
@@ -23,6 +24,7 @@ app.use("/api/departments", departmentsRouter); // ← було /api/branches
 app.use("/api/shipments", shipmentRouter);
 app.use("/api/routes", routeRouter);
 app.use("/api/courier-deliveries", courierRouter);
+app.use("/api/courier-route-optimization", courierRouteOptimizationRouter);
 app.use("/api/operators", operatorRouter);
 app.use("/api/tariffs", tariffRouter);
 app.use("/api/tracking", trackingRouter);

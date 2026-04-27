@@ -3,14 +3,24 @@ import { type Branch } from '../../types/branches';
 
 interface Props {
   branch: Branch;
+  isSelected?: boolean;
+  onSelect?: (id: number) => void;
 }
 
-export const BranchCard = ({ branch }: Props) => (
-  <div className="p-5 bg-white rounded-2xl border border-slate-100 hover:border-pine hover:shadow-lg hover:bg-slate-50/50 cursor-pointer transition-all group">
+export const BranchCard = ({ branch, isSelected = false, onSelect }: Props) => (
+  <button
+    type="button"
+    onClick={() => onSelect?.(branch.id)}
+    className={`w-full text-left p-5 rounded-2xl border cursor-pointer transition-all group ${
+      isSelected
+        ? 'bg-pine/5 border-pine shadow-lg ring-2 ring-pine/10'
+        : 'bg-white border-slate-100 hover:border-pine hover:shadow-lg hover:bg-slate-50/50'
+    }`}
+  >
     <div className="flex justify-between items-start mb-3">
       <div>
         <h3 className="text-lg font-bold text-slate-900 group-hover:text-pine transition-colors">
-          Відділення {branch.number}
+          {branch.name}
         </h3>
         <p className="text-sm font-semibold text-slate-500 mt-1">{branch.type}</p>
       </div>
@@ -44,5 +54,5 @@ export const BranchCard = ({ branch }: Props) => (
         <span>{branch.phone}</span>
       </div>
     </div>
-  </div>
+  </button>
 );

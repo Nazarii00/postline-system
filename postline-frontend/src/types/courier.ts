@@ -2,10 +2,14 @@ export type ReadyForCourierShipment = {
   id: number;
   tracking_number: string;
   status: string;
+  current_dept_id: number | null;
+  dest_dept_id: number;
   receiver_name: string;
   receiver_phone: string;
   receiver_address: string;
+  origin_city: string;
   dest_city: string;
+  current_city: string | null;
 };
 
 export type Courier = {

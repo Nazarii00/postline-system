@@ -11,6 +11,8 @@ npm-debug.log*
 .env.local
 .env.*.local
 variables.env
+postline-backend/.mapbox-quota.json
+postline-backend/.mapbox-quota.json.tmp
 
 .vscode/*
 !.vscode/extensions.json

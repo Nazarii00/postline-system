@@ -32,6 +32,11 @@ DB_PORT=5432
 DB_NAME=postline_db
 DB_USER=postgres
 DB_PASSWORD=1111
+MAPBOX_TOKEN=replace_with_mapbox_token
+MAPBOX_MONTHLY_REQUEST_LIMIT=15000
+MAPBOX_QUOTA_FILE=.mapbox-quota.json
 ```
 
 `JWT_SECRET` у реальному середовищі має бути довгим випадковим значенням, а не прикладом із репозиторію.
+`MAPBOX_TOKEN` потрібен тільки для оптимізації кур'єрських маршрутів і не передається на frontend.
+`MAPBOX_MONTHLY_REQUEST_LIMIT` локально обмежує кількість Mapbox-запитів за календарний місяць. Значення не може перевищити 15000, навіть якщо в `.env` випадково вказати більше.

@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 const Footer = () => {
   return (
     <footer className="bg-pine text-white pt-12 pb-8">
@@ -22,19 +24,19 @@ const Footer = () => {
           <div>
             <h3 className="font-semibold text-lg mb-6">Послуги</h3>
             <ul className="space-y-3 text-slate-300 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Відстеження</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Кур'єрська доставка</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Міжнародні відправлення</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Для бізнесу</a></li>
+              <li><Link to="/tracking" className="hover:text-white transition-colors">Відстеження</Link></li>
+              <li><Link to="/operator/new-shipment?courier=1" className="hover:text-white transition-colors">Кур'єрська доставка</Link></li>
+              <li><span className="text-slate-500">Міжнародні відправлення</span></li>
+              <li><Link to="/tariffs" className="hover:text-white transition-colors">Для бізнесу</Link></li>
             </ul>
           </div>
 
           <div>
             <h3 className="font-semibold text-lg mb-6">Клієнтам</h3>
             <ul className="space-y-3 text-slate-300 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Тарифи</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Знайти відділення</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">FAQ</a></li>
+              <li><Link to="/tariffs" className="hover:text-white transition-colors">Тарифи</Link></li>
+              <li><Link to="/branches" className="hover:text-white transition-colors">Знайти відділення</Link></li>
+              <li><span className="text-slate-500">FAQ</span></li>
             </ul>
           </div>
 

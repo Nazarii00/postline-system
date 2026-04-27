@@ -86,6 +86,7 @@ const getTrackingHandler = async (req, res, next) => {
     }
 
     return res.status(200).json({
+      shipmentId: parcel.id,
       trackingNumber: parcel.tracking_number,
       status: statusMap[parcel.status],
       rawStatus: parcel.status,

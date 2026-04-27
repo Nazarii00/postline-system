@@ -94,6 +94,7 @@ const OperatorsPage = () => {
       {isFormOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <CreateOperatorForm
+            departments={departments}
             onCancel={() => setIsFormOpen(false)}
             onSuccess={() => {
               setIsFormOpen(false);

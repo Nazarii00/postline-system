@@ -22,8 +22,8 @@ const createCourierDeliveryValidation = [
 const updateCourierDeliveryStatusValidation = [
   body("status")
     .notEmpty().withMessage("Статус є обов'язковим")
-    .isIn(["in_progress", "delivered", "failed"])
-    .withMessage("Статус має бути: in_progress, delivered або failed"),
+    .isIn(["delivered", "failed"])
+    .withMessage("Статус має бути: delivered або failed"),
 
   body("failureReason")
     .if(body("status").equals("failed"))

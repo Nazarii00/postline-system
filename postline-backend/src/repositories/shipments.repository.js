@@ -133,6 +133,40 @@ const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {})
     [departmentId, status || null, trackingNumber || null]
   );
 
+const getCourierShipmentsForCurrentDepartment = (departmentId, { trackingNumber } = {}) =>
+  db.many(
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
+            s.origin_dept_id, s.dest_dept_id, s.current_dept_id,
+            sd.shipment_type, sd.weight_kg, sd.receiver_address, sd.is_courier,
+            sender.full_name   AS sender_name,
+            receiver.full_name AS receiver_name,
+            receiver.phone     AS receiver_phone,
+            origin.city        AS origin_city,
+            dest.city          AS dest_city,
+            current.city       AS current_city
+     FROM shipments s
+     JOIN shipment_details sd ON sd.shipment_id = s.id
+     JOIN users sender        ON sender.id = s.sender_id
+     JOIN users receiver      ON receiver.id = s.receiver_id
+     JOIN departments origin   ON origin.id = s.origin_dept_id
+     JOIN departments dest     ON dest.id = s.dest_dept_id
+     LEFT JOIN departments current ON current.id = s.current_dept_id
+     WHERE s.current_dept_id = $1
+       AND s.dest_dept_id = $1
+       AND sd.is_courier = TRUE
+       AND s.status NOT IN ('delivered', 'cancelled', 'returned')
+       AND ($2::varchar IS NULL OR s.tracking_number ILIKE '%' || $2 || '%')
+       AND NOT EXISTS (
+         SELECT 1
+         FROM courier_deliveries cd
+         WHERE cd.shipment_id = s.id
+           AND cd.status IN ('assigned', 'in_progress', 'delivered')
+       )
+     ORDER BY (s.status = 'ready_for_pickup') DESC,
+              s.created_at DESC`,
+    [departmentId, trackingNumber || null]
+  );
+
 const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
   db.many(
     `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
@@ -227,6 +261,7 @@ module.exports = {
   getShipmentByTracking,
   getShipmentsByClient,
   getShipmentsByDepartment,
+  getCourierShipmentsForCurrentDepartment,
   getAllShipments,
   changeShipmentStatus,
   cancelShipment,

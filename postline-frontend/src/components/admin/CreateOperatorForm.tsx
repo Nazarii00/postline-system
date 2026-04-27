@@ -28,7 +28,7 @@ const getInitialRole = (operator?: Operator | null): StaffRole =>
 
 const CreateOperatorForm = ({
   operator = null,
-  departments: providedDepartments = [],
+  departments: providedDepartments,
   onSuccess,
   onCancel,
 }: CreateOperatorFormProps) => {
@@ -40,20 +40,32 @@ const CreateOperatorForm = ({
   const [password, setPassword] = useState('');
   const [departmentId, setDepartmentId] = useState(operator?.department_id ? String(operator.department_id) : '');
   const [role, setRole] = useState<StaffRole>(getInitialRole(operator));
-  const [departments, setDepartments] = useState<Department[]>(providedDepartments);
+  const [departments, setDepartments] = useState<Department[]>(providedDepartments ?? []);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (providedDepartments.length > 0) {
+    if (providedDepartments) {
       setDepartments(providedDepartments);
       return;
     }
 
+    let isMounted = true;
+
     api.get<{ data: Department[] }>('/departments')
-      .then((res) => setDepartments(res.data))
-      .catch(() => {});
+      .then((res) => {
+        if (isMounted) setDepartments(res.data);
+      })
+      .catch((err: unknown) => {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Не вдалося завантажити відділення');
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [providedDepartments]);
 
   const isNameValid = fullName.trim().length >= 5;

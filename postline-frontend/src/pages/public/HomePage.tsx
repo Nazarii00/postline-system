@@ -1,4 +1,4 @@
-
+import { Link } from 'react-router-dom';
 import HeroSection from "../../components/home/HeroSection";
 import ServicesSection from "../../components/home/ServicesSection";
 
@@ -46,9 +46,12 @@ const HomePage = () => {
                     </p>
                     </div>
 
-                    <button className="relative z-10 bg-white text-pine px-12 py-5 rounded-2xl font-bold text-lg hover:bg-gold transition-all shadow-xl whitespace-nowrap active:scale-95">
-                    Відкрити карту
-                    </button>
+                    <Link
+                      to="/branches"
+                      className="relative z-10 bg-white text-pine px-12 py-5 rounded-2xl font-bold text-lg hover:bg-gold transition-all shadow-xl whitespace-nowrap active:scale-95"
+                    >
+                      Відкрити карту
+                    </Link>
                 </div>
             </section>
         </div>

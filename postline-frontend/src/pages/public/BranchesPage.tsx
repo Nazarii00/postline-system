@@ -5,11 +5,14 @@ import { BranchSidebar } from '../../components/branches/BranchSidebar';
 import { BranchesMap } from '../../components/branches/BranchesMap';
 import type { Branch } from '../../types/branches';
 import type { Department } from '../../types/departments';
+import { getBranchCoordinates } from '../../utils/branchCoordinates';
 
 const TYPE_LABELS: Record<string, string> = {
   branch: 'Відділення',
+  post_office: 'Відділення',
   sorting_center: 'Сортувальний центр',
   postomat: 'Поштомат',
+  pickup_point: 'Поштомат',
 };
 
 const formatSchedule = (department: Department) => {
@@ -33,21 +36,29 @@ const isOpenNow = (department: Department) => {
   return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
 };
 
-const mapDepartmentToBranch = (department: Department): Branch => ({
-  id: department.id,
-  number: `№${department.id}`,
-  type: TYPE_LABELS[department.type] ?? department.type,
-  address: department.address,
-  city: department.city,
-  schedule: formatSchedule(department),
-  phone: department.phone ?? 'Телефон уточнюється',
-  maxWeight: department.type === 'sorting_center' ? 'Без обмежень' : 'до 30 кг',
-  openNow: isOpenNow(department),
-});
+const mapDepartmentToBranch = (department: Department): Branch => {
+  const type = TYPE_LABELS[department.type] ?? department.type;
+  const number = `№${department.id}`;
+
+  return {
+    id: department.id,
+    name: `${type} ${number}`,
+    number,
+    type,
+    address: department.address,
+    city: department.city,
+    schedule: formatSchedule(department),
+    phone: department.phone ?? 'Телефон уточнюється',
+    maxWeight: department.type === 'sorting_center' ? 'Без обмежень' : 'до 30 кг',
+    openNow: isOpenNow(department),
+    ...getBranchCoordinates(department),
+  };
+};
 
 const BranchesPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,9 +78,11 @@ const BranchesPage = () => {
     if (!query) return branches;
 
     return branches.filter((branch) =>
+      branch.name.toLowerCase().includes(query) ||
       branch.city.toLowerCase().includes(query) ||
       branch.address.toLowerCase().includes(query) ||
-      branch.number.toLowerCase().includes(query)
+      branch.number.toLowerCase().includes(query) ||
+      branch.type.toLowerCase().includes(query)
     );
   }, [branches, searchQuery]);
 
@@ -85,11 +98,19 @@ const BranchesPage = () => {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             branches={filteredBranches}
+            selectedBranchId={selectedBranchId}
+            onBranchSelect={setSelectedBranchId}
             isLoading={isLoading}
             error={error}
           />
 
-          <BranchesMap branches={filteredBranches} isLoading={isLoading} error={error} />
+          <BranchesMap
+            branches={filteredBranches}
+            selectedBranchId={selectedBranchId}
+            onBranchSelect={setSelectedBranchId}
+            isLoading={isLoading}
+            error={error}
+          />
         </div>
       </section>
     </main>

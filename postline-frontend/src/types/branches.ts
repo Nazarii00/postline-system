@@ -1,5 +1,6 @@
 export interface Branch {
   id: number;
+  name: string;
   number: string;
   type: string;
   address: string;
@@ -8,4 +9,6 @@ export interface Branch {
   phone: string;
   maxWeight: string;
   openNow: boolean;
+  lat: number;
+  lng: number;
 }

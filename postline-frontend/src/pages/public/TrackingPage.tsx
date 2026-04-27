@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { User, MapPin, Scale, CreditCard } from 'lucide-react';
 import { api } from '../../services/api';
 import { type ParcelData } from '../../types/tracking';
@@ -9,15 +10,17 @@ import { TrackingDetailCard } from '../../components/tracking/TrackingDetailCard
 import { TrackingTimeline } from '../../components/tracking/TrackingTimeline';
 
 const TrackingPage = () => {
+  const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [parcelData, setParcelData] = useState<ParcelData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const numberFromUrl = searchParams.get('number');
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
+  const performSearch = useCallback(async (trackingNumber: string) => {
+    const normalized = trackingNumber.trim();
+    if (!normalized) return;
 
     setIsLoading(true);
     setError(null);
@@ -25,7 +28,7 @@ const TrackingPage = () => {
     setParcelData(null);
 
     try {
-      const data = await api.get<ParcelData>(`/tracking/${searchQuery.trim()}`);
+      const data = await api.get<ParcelData>(`/tracking/${normalized}`);
       setParcelData(data);
     } catch (err) {
       if (err instanceof Error) {
@@ -36,6 +39,19 @@ const TrackingPage = () => {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!numberFromUrl) return;
+
+    const normalized = numberFromUrl.trim().toUpperCase();
+    setSearchQuery(normalized);
+    void performSearch(normalized);
+  }, [numberFromUrl, performSearch]);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performSearch(searchQuery);
   };
 
   return (

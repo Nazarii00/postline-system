@@ -19,7 +19,7 @@ class TrackingRepository {
       WHERE s.tracking_number = $1
     `;
 
-    return db.one(query, [trackingNumber]);
+    return db.oneOrNone(query, [trackingNumber]);
   }
 
   async getShipmentHistory(shipmentId) {

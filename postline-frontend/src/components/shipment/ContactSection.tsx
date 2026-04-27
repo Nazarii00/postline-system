@@ -13,9 +13,20 @@ interface Props {
   errors: Record<string, string>;
   cities: string[];
   departments: Department[];
+  isLocationLocked?: boolean;
 }
 
-export const ContactSection = ({ title, icon, prefix, formData, onChange, errors, cities, departments }: Props) => {
+export const ContactSection = ({
+  title,
+  icon,
+  prefix,
+  formData,
+  onChange,
+  errors,
+  cities,
+  departments,
+  isLocationLocked = false,
+}: Props) => {
   const phoneKey     = `${prefix}Phone`     as keyof ShipmentFormData;
   const fullNameKey  = `${prefix}FullName`  as keyof ShipmentFormData;
   const cityKey      = `${prefix}City`      as keyof ShipmentFormData;
@@ -68,6 +79,7 @@ export const ContactSection = ({ title, icon, prefix, formData, onChange, errors
               value={formData[cityKey]}
               onChange={onChange}
               className={getFieldClass(cityKey, errors)}
+              disabled={isLocationLocked}
             >
               <option value="">Оберіть місто...</option>
               {cities.map((city) => (
@@ -84,7 +96,7 @@ export const ContactSection = ({ title, icon, prefix, formData, onChange, errors
               value={formData[branchKey]}
               onChange={onChange}
               className={getFieldClass(branchKey, errors)}
-              disabled={departments.length === 0}
+              disabled={isLocationLocked || departments.length === 0}
             >
               <option value="">Оберіть...</option>
               {departments.map((d) => (
@@ -96,6 +108,12 @@ export const ContactSection = ({ title, icon, prefix, formData, onChange, errors
             <ErrorMsg field={branchKey} errors={errors} />
           </div>
         </div>
+
+        {isLocationLocked && (
+          <p className="text-xs text-slate-500 font-medium">
+            Відділення відправлення закріплене за вашим акаунтом оператора.
+          </p>
+        )}
       </div>
     </section>
   );

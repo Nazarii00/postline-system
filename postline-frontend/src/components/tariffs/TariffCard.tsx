@@ -52,13 +52,13 @@ export const TariffCard = ({ plan }: Props) => {
         ))}
       </ul>
 
-      <button className={`w-full py-3.5 mt-auto rounded-2xl font-bold transition-all text-base active:scale-95 ${
+      <a href="#calculator" className={`w-full py-3.5 mt-auto rounded-2xl font-bold transition-all text-base active:scale-95 text-center ${
         isPopular 
           ? 'bg-white text-pine hover:bg-slate-50 shadow-lg' 
           : 'bg-slate-50 text-slate-800 border border-slate-200 hover:bg-slate-100 hover:border-slate-300'
       }`}>
-        Детальні умови
-      </button>
+        Розрахувати тариф
+      </a>
     </div>
   );
 };

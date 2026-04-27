@@ -50,7 +50,7 @@ const updateUserPassword = (id, passwordHash) =>
   );
 
 const findOrCreateUserByPhone = async ({ phone, fullName }) => {
-  const existing = await db.one(
+  const existing = await db.oneOrNone(
     'SELECT * FROM users WHERE phone = $1 AND deleted_at IS NULL',
     [phone]
   );
@@ -59,6 +59,7 @@ const findOrCreateUserByPhone = async ({ phone, fullName }) => {
   return db.one(
     `INSERT INTO users (full_name, phone, email, role, password_hash)
      VALUES ($1, $2, $3, 'client', '')
+     ON CONFLICT (phone) DO UPDATE SET full_name = EXCLUDED.full_name
      RETURNING *`,
     [fullName, phone, `${phone}@postline.local`]
   );
