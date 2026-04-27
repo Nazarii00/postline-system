@@ -91,7 +91,7 @@ const getShipmentByTracking = (trackingNumber) =>
 
 const getShipmentsByClient = (clientId) =>
   db.many(
-    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg,
             sender.full_name   AS sender_name,
             receiver.full_name AS receiver_name,
@@ -110,7 +110,7 @@ const getShipmentsByClient = (clientId) =>
 
 const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {}) =>
   db.many(
-    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg,
             sender.full_name   AS sender_name,
             receiver.full_name AS receiver_name
@@ -127,7 +127,7 @@ const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {})
 
 const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
   db.many(
-    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg,
             sender.full_name   AS sender_name,
             receiver.full_name AS receiver_name,
@@ -149,7 +149,7 @@ const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
 // app.current_user_id потрібен для тригера fn_log_status_change
 const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =>
   db.tx(async (client) => {
-    await client.query(`SET LOCAL app.current_user_id = '${operatorId}'`);
+    await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(operatorId)]);
 
     const { rows: [updated] } = await client.query(
       `UPDATE shipments
@@ -162,9 +162,15 @@ const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =
     // notes в processing_events якщо є
     if (notes) {
       await client.query(
-        `UPDATE processing_events SET notes = $1
-         WHERE shipment_id = $2 AND status_set = $3
-         ORDER BY created_at DESC LIMIT 1`,
+        `UPDATE processing_events
+         SET notes = $1
+         WHERE ctid IN (
+           SELECT ctid
+           FROM processing_events
+           WHERE shipment_id = $2 AND status_set = $3
+           ORDER BY created_at DESC
+           LIMIT 1
+         )`,
         [notes, id, status]
       );
     }

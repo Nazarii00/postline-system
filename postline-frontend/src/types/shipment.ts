@@ -16,6 +16,7 @@ export type Shipment = {
   status: ShipmentStatus;
   total_cost: number | string;
   created_at: string;
+  current_dept_id?: number;
   shipment_type: ShipmentType;
   weight_kg: number | string;
   sender_name: string;

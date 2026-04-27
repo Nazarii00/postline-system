@@ -106,12 +106,13 @@ const changeStatusHandler = async (req, res, next) => {
     const { id } = req.params;
     const { status, notes } = req.body;
     const operatorId = req.user.sub;
-    const departmentId = req.user.departmentId;
 
     const shipment = await getShipmentById(id);
     if (!shipment) {
       return res.status(404).json({ message: "Відправлення не знайдено" });
     }
+
+    const departmentId = req.user.departmentId || shipment.current_dept_id;
 
     // Перевірка що відправлення належить відділенню оператора (Req7)
     if (req.user.role === 'operator' && shipment.current_dept_id !== departmentId) {
