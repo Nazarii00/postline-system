@@ -87,6 +87,8 @@ const listShipmentsHandler = async (req, res, next) => {
     } else if (role === 'operator') {
       // Оператор бачить тільки відправлення свого відділення
       shipments = await getShipmentsByDepartment(operatorDeptId, { status, trackingNumber });
+    } else if (role === 'courier') {
+      shipments = [];
     } else {
       // admin
       shipments = await getAllShipments({ departmentId, status, trackingNumber });

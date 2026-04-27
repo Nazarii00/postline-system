@@ -38,6 +38,17 @@ const updateOperatorValidation = [
   body("departmentId")
     .optional()
     .isInt().withMessage("ID відділення має бути числом"),
+
+  body("role")
+    .optional()
+    .isIn(["operator", "courier"]).withMessage("Роль має бути: operator або courier"),
 ];
 
-module.exports = { createOperatorValidation, updateOperatorValidation };
+const updateOperatorStatusValidation = [
+  body("isActive")
+    .exists().withMessage("Статус активності є обов'язковим")
+    .isBoolean().withMessage("Статус активності має бути true або false")
+    .toBoolean(),
+];
+
+module.exports = { createOperatorValidation, updateOperatorValidation, updateOperatorStatusValidation };

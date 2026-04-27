@@ -63,7 +63,7 @@ const TrackingPage = () => {
                 items={[
                   { label: 'ПІБ', value: parcelData.sender.name },
                   { label: 'Місто', value: parcelData.sender.city },
-                  { label: 'Відділення', value: parcelData.sender.branch }
+                  { label: 'Відділення', value: parcelData.sender.branch },
                 ]}
               />
               <TrackingDetailCard
@@ -72,7 +72,7 @@ const TrackingPage = () => {
                 items={[
                   { label: 'ПІБ', value: parcelData.receiver.name },
                   { label: 'Місто', value: parcelData.receiver.city },
-                  { label: 'Відділення / Адреса', value: parcelData.receiver.branch }
+                  { label: 'Відділення / адреса', value: parcelData.receiver.branch },
                 ]}
               />
               <TrackingDetailCard
@@ -82,7 +82,7 @@ const TrackingPage = () => {
                   { label: 'Тип', value: parcelData.type, isHighlight: true },
                   { label: 'Вага', value: parcelData.details.weight, isHighlight: true },
                   { label: 'Габарити', value: parcelData.details.dimensions, isHighlight: true },
-                  { label: 'Оголош. вартість', value: parcelData.details.declaredValue, isHighlight: true }
+                  { label: 'Оголош. вартість', value: parcelData.details.declaredValue, isHighlight: true },
                 ]}
               />
               <TrackingDetailCard
@@ -91,7 +91,7 @@ const TrackingPage = () => {
                 items={[
                   { label: 'До сплати', value: parcelData.financials.cost, isHighlight: true },
                   { label: 'Платник', value: 'Одержувач', isHighlight: true },
-                  { label: 'Тип доставки', value: parcelData.financials.deliveryType, isHighlight: true }
+                  { label: 'Тип доставки', value: parcelData.financials.deliveryType, isHighlight: true },
                 ]}
               />
             </div>

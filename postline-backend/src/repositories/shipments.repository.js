@@ -195,7 +195,7 @@ const getShipmentHistory = (shipmentId) =>
 
 const getRecentActivity = async (limit = 10) => {
   // Використовуємо параметризований запит ($1) для безпеки та гнучкості
-  const { rows } = await db.query(
+  return db.many(
     `SELECT s.tracking_number, pe.status_set, pe.created_at,
             u.full_name AS operator_name
      FROM processing_events pe
@@ -205,7 +205,6 @@ const getRecentActivity = async (limit = 10) => {
      LIMIT $1`,
     [limit]
   );
-  return rows;
 };
 
 module.exports = {

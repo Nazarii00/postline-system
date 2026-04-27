@@ -43,6 +43,22 @@ const passwordRules = body("password")
   .matches(/[!@#$%^&*(),.?":{}|<>_\-\\[\]/+=~`]/)
   .withMessage("password має містити хоча б один спеціальний символ");
 
+const newPasswordRules = body("newPassword")
+  .notEmpty()
+  .withMessage("Поле newPassword є обов'язковим")
+  .isLength({ min: 8, max: 64 })
+  .withMessage("newPassword має містити від 8 до 64 символів")
+  .matches(/[A-Z]/)
+  .withMessage("newPassword має містити хоча б одну велику літеру")
+  .matches(/[a-z]/)
+  .withMessage("newPassword має містити хоча б одну малу літеру")
+  .matches(/\d/)
+  .withMessage("newPassword має містити хоча б одну цифру")
+  .matches(/[!@#$%^&*(),.?":{}|<>_\-\\[\]/+=~`]/)
+  .withMessage("newPassword має містити хоча б один спеціальний символ")
+  .custom((value, { req }) => value !== req.body.currentPassword)
+  .withMessage("Новий пароль має відрізнятися від поточного");
+
 const registerValidation = [fullNameRules, emailRules, phoneRules, roleRules, passwordRules];
 
 const loginValidation = [
@@ -52,4 +68,11 @@ const loginValidation = [
 
 const updateProfileValidation = [fullNameRules, emailRules, phoneRules];
 
-module.exports = { registerValidation, loginValidation, updateProfileValidation };
+const changePasswordValidation = [
+  body("currentPassword")
+    .notEmpty()
+    .withMessage("Поле currentPassword є обов'язковим"),
+  newPasswordRules,
+];
+
+module.exports = { registerValidation, loginValidation, updateProfileValidation, changePasswordValidation };

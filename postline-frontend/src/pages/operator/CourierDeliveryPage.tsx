@@ -2,70 +2,46 @@ import { useState, useEffect } from 'react';
 import { MapPin, Phone, UserCheck, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
-
-type Shipment = {
-  id: number;
-  tracking_number: string;
-  status: string;
-  receiver_name: string;
-  receiver_phone: string;
-  receiver_address: string;
-  dest_city: string;
-};
-
-type Courier = {
-  id: number;
-  full_name: string;
-  phone: string;
-  role: string;
-};
-
-type CourierDelivery = {
-  id: number;
-  shipment_id: number;
-  courier_id: number | null;
-  status: string;
-  to_address: string;
-  tracking_number: string;
-  receiver_name: string;
-  receiver_phone: string;
-  courier_name: string | null;
-};
+import type { Courier, CourierDelivery, ReadyForCourierShipment } from '../../types/courier';
 
 const CourierDeliveryPage = () => {
   const user = useAuthStore((state) => state.user);
+  const isCourier = user?.role === 'courier';
 
-  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [shipments, setShipments] = useState<ReadyForCourierShipment[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [deliveries, setDeliveries] = useState<CourierDelivery[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Модальне вікно призначення.
-  const [assigningShipment, setAssigningShipment] = useState<Shipment | null>(null);
+  const [assigningShipment, setAssigningShipment] = useState<ReadyForCourierShipment | null>(null);
   const [selectedCourier, setSelectedCourier] = useState('');
   const [toAddress, setToAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      api.get<{ data: Shipment[] }>('/shipments?status=ready_for_pickup'),
-      api.get<{ data: Courier[] }>(`/operators?departmentId=${user?.departmentId}`),
-    ])
-      .then(([shipmentsRes, couriersRes]) => {
-        setShipments(shipmentsRes.data);
-        setCouriers(couriersRes.data.filter((c) => c.role === 'courier'));
-      })
-      .catch(() => setError('Не вдалося завантажити дані'))
-      .finally(() => setIsLoading(false));
-  }, [user]);
+  const loadDeliveries = async () => {
+    const res = await api.get<{ data: CourierDelivery[] }>('/courier-deliveries?status=assigned');
+    setDeliveries(res.data);
+  };
 
-  // Завантажити активні доставки.
   useEffect(() => {
-    api.get<{ data: CourierDelivery[] }>('/courier-deliveries?status=assigned')
-      .then((res) => setDeliveries(res.data))
-      .catch(() => {});
-  }, []);
+    const requests: Promise<unknown>[] = [loadDeliveries()];
+
+    if (!isCourier) {
+      requests.push(
+        api.get<{ data: ReadyForCourierShipment[] }>('/shipments?status=ready_for_pickup')
+          .then((res) => setShipments(res.data)),
+        api.get<{ data: Courier[] }>(`/operators?departmentId=${user?.departmentId}`)
+          .then((res) => setCouriers(res.data.filter((courier) => courier.role === 'courier')))
+      );
+    }
+
+    Promise.all(requests)
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Не вдалося завантажити дані');
+      })
+      .finally(() => setIsLoading(false));
+  }, [isCourier, user?.departmentId]);
 
   const handleAssign = async () => {
     if (!assigningShipment || !selectedCourier || !toAddress) return;
@@ -78,13 +54,12 @@ const CourierDeliveryPage = () => {
         toAddress,
       });
 
-      setShipments((prev) => prev.filter((s) => s.id !== assigningShipment.id));
+      setShipments((prev) => prev.filter((shipment) => shipment.id !== assigningShipment.id));
       setAssigningShipment(null);
       setSelectedCourier('');
       setToAddress('');
 
-      const res = await api.get<{ data: CourierDelivery[] }>('/courier-deliveries?status=assigned');
-      setDeliveries(res.data);
+      await loadDeliveries();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Помилка при призначенні кур'єра");
     } finally {
@@ -102,8 +77,7 @@ const CourierDeliveryPage = () => {
         status,
         failureReason: failureReason || null,
       });
-      const res = await api.get<{ data: CourierDelivery[] }>('/courier-deliveries?status=assigned');
-      setDeliveries(res.data);
+      await loadDeliveries();
     } catch {
       setError('Помилка при оновленні статусу');
     }
@@ -128,64 +102,72 @@ const CourierDeliveryPage = () => {
         </div>
       )}
 
-      <div>
-        <h2 className="text-lg font-black text-slate-700 mb-4">
-          Готові до кур'єрської доставки
-        </h2>
+      {!isCourier && (
+        <div>
+          <h2 className="text-lg font-black text-slate-700 mb-4">
+            Готові до кур'єрської доставки
+          </h2>
 
+          {isLoading ? (
+            <div className="p-8 text-center text-slate-400">Завантаження...</div>
+          ) : shipments.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 text-slate-400 font-medium">
+              Немає відправлень, готових до кур'єрської доставки
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {shipments.map((shipment) => (
+                <div
+                  key={shipment.id}
+                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="font-bold text-slate-900 text-lg">{shipment.tracking_number}</span>
+                      <span className="px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider bg-blue-100 text-blue-600">
+                        Готове до видачі
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-slate-700 flex items-start gap-2 font-medium">
+                        <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5" />
+                        {shipment.dest_city}
+                      </p>
+                      <p className="text-sm text-slate-700 flex items-center gap-2 font-medium">
+                        <Phone size={16} className="text-slate-400 shrink-0" />
+                        {shipment.receiver_phone}
+                        <span className="text-slate-500 font-normal">({shipment.receiver_name})</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
+                    <button
+                      onClick={() => {
+                        setAssigningShipment(shipment);
+                        setToAddress(shipment.receiver_address || '');
+                      }}
+                      className="w-full md:w-auto px-6 py-3 bg-pine text-white rounded-2xl text-sm font-bold hover:bg-pine/90 active:scale-95 transition-all shadow-lg"
+                    >
+                      Призначити кур'єра
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div>
+        <h2 className="text-lg font-black text-slate-700 mb-4">Активні доставки</h2>
         {isLoading ? (
           <div className="p-8 text-center text-slate-400">Завантаження...</div>
-        ) : shipments.length === 0 ? (
+        ) : deliveries.length === 0 ? (
           <div className="p-8 text-center bg-white rounded-3xl border border-slate-200 text-slate-400 font-medium">
-            Немає відправлень, готових до кур'єрської доставки
+            Активних кур'єрських доставок немає
           </div>
         ) : (
-          <div className="space-y-4">
-            {shipments.map((shipment) => (
-              <div
-                key={shipment.id}
-                className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="font-bold text-slate-900 text-lg">{shipment.tracking_number}</span>
-                    <span className="px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider bg-blue-100 text-blue-600">
-                      Готове до видачі
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm text-slate-700 flex items-start gap-2 font-medium">
-                      <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5" />
-                      {shipment.dest_city}
-                    </p>
-                    <p className="text-sm text-slate-700 flex items-center gap-2 font-medium">
-                      <Phone size={16} className="text-slate-400 shrink-0" />
-                      {shipment.receiver_phone}
-                      <span className="text-slate-500 font-normal">({shipment.receiver_name})</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
-                  <button
-                    onClick={() => {
-                      setAssigningShipment(shipment);
-                      setToAddress(shipment.receiver_address || '');
-                    }}
-                    className="w-full md:w-auto px-6 py-3 bg-pine text-white rounded-2xl text-sm font-bold hover:bg-pine/90 active:scale-95 transition-all shadow-lg"
-                  >
-                    Призначити кур'єра
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {deliveries.length > 0 && (
-        <div>
-          <h2 className="text-lg font-black text-slate-700 mb-4">Активні доставки</h2>
           <div className="space-y-4">
             {deliveries.map((delivery) => (
               <div
@@ -228,8 +210,8 @@ const CourierDeliveryPage = () => {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {assigningShipment && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -261,8 +243,8 @@ const CourierDeliveryPage = () => {
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
                 >
                   <option value="">Оберіть кур'єра...</option>
-                  {couriers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.full_name} В· {c.phone}</option>
+                  {couriers.map((courier) => (
+                    <option key={courier.id} value={courier.id}>{courier.full_name} · {courier.phone}</option>
                   ))}
                 </select>
               </div>

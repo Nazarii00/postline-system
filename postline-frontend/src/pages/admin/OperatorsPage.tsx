@@ -11,6 +11,7 @@ const OperatorsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingOperator, setEditingOperator] = useState<Operator | null>(null);
 
   const fetchOperators = useCallback(async () => {
     setIsLoading(true);
@@ -33,25 +34,37 @@ const OperatorsPage = () => {
   }, [fetchOperators]);
 
   const handleToggleStatus = async (op: Operator) => {
-    if (!window.confirm(`${op.deleted_at ? 'Активувати' : 'Деактивувати'} ${op.full_name}?`)) return;
+    const shouldActivate = Boolean(op.deleted_at);
+    const action = shouldActivate ? 'Активувати' : 'Деактивувати';
+    if (!window.confirm(`${action} ${op.full_name}?`)) return;
 
     try {
-      await api.delete(`/operators/${op.id}`);
+      const res = await api.patch<{ data: Operator }>(`/operators/${op.id}/status`, {
+        isActive: shouldActivate,
+      });
       setOperators((prev) =>
         prev.map((o) =>
-          o.id === op.id
-            ? { ...o, deleted_at: o.deleted_at ? null : new Date().toISOString() }
-            : o
+          o.id === op.id ? res.data : o
         )
       );
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Не вдалося змінити статус');
+      setError(err instanceof Error ? err.message : 'Не вдалося змінити статус');
     }
   };
 
   const handleEdit = (op: Operator) => {
-    // Тут в майбутньому можна додати логіку відкриття модалки редагування
-    console.log("Редагувати оператора:", op);
+    setEditingOperator(op);
+    setIsFormOpen(true);
+  };
+
+  const handleCreate = () => {
+    setEditingOperator(null);
+    setIsFormOpen(true);
+  };
+
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setEditingOperator(null);
   };
 
   return (
@@ -68,7 +81,7 @@ const OperatorsPage = () => {
             </p>
           </div>
           <button
-            onClick={() => setIsFormOpen(true)}
+            onClick={handleCreate}
             className="flex items-center justify-center gap-2 px-7 py-3.5 bg-pine text-white rounded-2xl font-bold hover:bg-pine/90 transition-colors whitespace-nowrap shadow-sm"
           >
             <UserPlus size={20} /> Новий оператор
@@ -94,9 +107,11 @@ const OperatorsPage = () => {
       {isFormOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <CreateOperatorForm
-            onCancel={() => setIsFormOpen(false)}
+            operator={editingOperator}
+            departments={departments}
+            onCancel={handleCloseForm}
             onSuccess={() => {
-              setIsFormOpen(false);
+              handleCloseForm();
               fetchOperators();
             }}
           />

@@ -3,9 +3,9 @@ const db = require("../db");
 class TrackingRepository {
   async getShipmentByTrackingNumber(trackingNumber) {
     const query = `
-      SELECT 
+      SELECT
           s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.failed_attempts,
-          sd.shipment_type, sd.weight_kg, sd.length_cm, sd.width_cm, sd.height_cm, 
+          sd.shipment_type, sd.weight_kg, sd.length_cm, sd.width_cm, sd.height_cm,
           sd.declared_value, sd.is_courier, sd.sender_address, sd.receiver_address,
           u_sender.full_name AS sender_name, u_receiver.full_name AS receiver_name,
           dept_origin.city AS origin_city, dept_origin.address AS origin_address,
@@ -18,9 +18,8 @@ class TrackingRepository {
       JOIN departments dept_dest ON s.dest_dept_id = dept_dest.id
       WHERE s.tracking_number = $1
     `;
-    
-    // Використовуємо твій метод .one(), він сам поверне rows[0] або null
-    return await db.one(query, [trackingNumber]);
+
+    return db.one(query, [trackingNumber]);
   }
 
   async getShipmentHistory(shipmentId) {
@@ -31,9 +30,8 @@ class TrackingRepository {
       WHERE pe.shipment_id = $1
       ORDER BY pe.created_at ASC
     `;
-    
-    // Використовуємо твій метод .many(), він сам поверне масив rows
-    return await db.many(query, [shipmentId]);
+
+    return db.many(query, [shipmentId]);
   }
 }
 

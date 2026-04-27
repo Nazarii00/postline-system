@@ -40,6 +40,15 @@ const updateUser = (id, { fullName, phone, email }) =>
     [fullName, phone, email, id]
   );
 
+const updateUserPassword = (id, passwordHash) =>
+  db.one(
+    `UPDATE users
+     SET password_hash = $1
+     WHERE id = $2 AND deleted_at IS NULL
+     RETURNING *`,
+    [passwordHash, id]
+  );
+
 const findOrCreateUserByPhone = async ({ phone, fullName }) => {
   const existing = await db.one(
     'SELECT * FROM users WHERE phone = $1 AND deleted_at IS NULL',
@@ -61,5 +70,6 @@ module.exports = {
   createUser, 
   findOrCreateClient,
   updateUser,
+  updateUserPassword,
   findOrCreateUserByPhone,
 };

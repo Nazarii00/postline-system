@@ -1,4 +1,18 @@
-const db = require('../db');
+const db = require("../db");
+
+const courierDeliverySelect = `
+  SELECT cd.*,
+         s.tracking_number,
+         s.status AS shipment_status,
+         receiver.full_name AS receiver_name,
+         receiver.phone AS receiver_phone,
+         courier.full_name AS courier_name,
+         courier.phone AS courier_phone
+  FROM courier_deliveries cd
+  JOIN shipments s ON s.id = cd.shipment_id
+  JOIN users receiver ON receiver.id = s.receiver_id
+  LEFT JOIN users courier ON courier.id = cd.courier_id
+`;
 
 const createCourierDelivery = ({ shipmentId, courierId, operatorId, toAddress, notes }) =>
   db.one(
@@ -9,39 +23,28 @@ const createCourierDelivery = ({ shipmentId, courierId, operatorId, toAddress, n
   );
 
 const getCourierDeliveryById = (id) =>
-  db.one('SELECT * FROM courier_deliveries WHERE id = $1', [id]);
-
-const getCourierDeliveriesByShipment = (shipmentId) =>
-  db.many(
-    `SELECT cd.*, 
-            u.full_name AS courier_name,
-            u.phone AS courier_phone
-     FROM courier_deliveries cd
-     LEFT JOIN users u ON u.id = cd.courier_id
-     WHERE cd.shipment_id = $1
-     ORDER BY cd.attempt_datetime DESC`,
-    [shipmentId]
+  db.one(
+    `${courierDeliverySelect}
+     WHERE cd.id = $1`,
+    [id]
   );
 
-const getCourierDeliveriesByCourier = (courierId) =>
+const listCourierDeliveries = ({ shipmentId, courierId, status } = {}) =>
   db.many(
-    `SELECT cd.*,
-            s.tracking_number,
-            s.status AS shipment_status
-     FROM courier_deliveries cd
-     JOIN shipments s ON s.id = cd.shipment_id
-     WHERE cd.courier_id = $1
+    `${courierDeliverySelect}
+     WHERE ($1::int IS NULL OR cd.shipment_id = $1)
+       AND ($2::int IS NULL OR cd.courier_id = $2)
+       AND ($3::varchar IS NULL OR cd.status = $3)
      ORDER BY cd.attempt_datetime DESC`,
-    [courierId]
+    [shipmentId || null, courierId || null, status || null]
   );
 
-// Оператор вносить результат: delivered або failed
 const updateCourierDeliveryStatus = (id, { status, failureReason, notes }) =>
   db.one(
     `UPDATE courier_deliveries
-     SET status         = $2,
+     SET status = $2,
          failure_reason = COALESCE($3, failure_reason),
-         notes          = COALESCE($4, notes)
+         notes = COALESCE($4, notes)
      WHERE id = $1
      RETURNING *`,
     [id, status, failureReason || null, notes || null]
@@ -50,7 +53,6 @@ const updateCourierDeliveryStatus = (id, { status, failureReason, notes }) =>
 module.exports = {
   createCourierDelivery,
   getCourierDeliveryById,
-  getCourierDeliveriesByShipment,
-  getCourierDeliveriesByCourier,
+  listCourierDeliveries,
   updateCourierDeliveryStatus,
 };

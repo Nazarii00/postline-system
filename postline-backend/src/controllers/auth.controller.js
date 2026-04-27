@@ -5,6 +5,7 @@ const {
   findUserByEmail,
   findUserById,
   updateUser,
+  updateUserPassword,
 } = require("../repositories/users.repository");
 
 const pickPublicUser = (user) => ({
@@ -41,7 +42,7 @@ const register = async (req, res, next) => {
     const token = signToken(user);
     return res.status(201).json({ user: pickPublicUser(user), token });
   } catch (error) {
-    if (error.code === '23505') {
+    if (error.code === "23505") {
       return res.status(409).json({ message: "Email або телефон вже використовується" });
     }
     return next(error);
@@ -91,16 +92,39 @@ const updateProfile = async (req, res, next) => {
     const user = await updateUser(req.user.sub, { fullName, phone, email });
 
     if (!user) {
-      return res.status(404).json({ message: "РљРѕСЂРёСЃС‚СѓРІР°С‡Р° РЅРµ Р·РЅР°Р№РґРµРЅРѕ" });
+      return res.status(404).json({ message: "Користувача не знайдено" });
     }
 
     return res.status(200).json({ user: pickPublicUser(user) });
   } catch (error) {
     if (error.code === "23505") {
-      return res.status(409).json({ message: "Email Р°Р±Рѕ С‚РµР»РµС„РѕРЅ РІР¶Рµ РІРёРєРѕСЂРёСЃС‚РѕРІСѓС”С‚СЊСЃСЏ" });
+      return res.status(409).json({ message: "Email або телефон вже використовується" });
     }
     return next(error);
   }
 };
 
-module.exports = { register, login, getProfile, updateProfile };
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await findUserById(req.user.sub);
+
+    if (!user) {
+      return res.status(404).json({ message: "Користувача не знайдено" });
+    }
+
+    const isCurrentPasswordCorrect = await bcrypt.compare(currentPassword, user.password_hash || "");
+    if (!isCurrentPasswordCorrect) {
+      return res.status(400).json({ message: "Поточний пароль вказано неправильно" });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await updateUserPassword(user.id, passwordHash);
+
+    return res.status(200).json({ message: "Пароль успішно оновлено" });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { register, login, getProfile, updateProfile, changePassword };

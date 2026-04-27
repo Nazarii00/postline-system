@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Eye, EyeOff, UserPlus, X } from 'lucide-react';
 import { api } from '../../services/api';
-import type { Department, StaffRole } from '../../types/operators';
+import type { Department, Operator, StaffRole } from '../../types/operators';
 
 const sanitizeEmail = (value: string) => {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9@._+-]/g, '');
@@ -17,27 +17,44 @@ const sanitizePhone = (value: string) => {
 };
 
 interface CreateOperatorFormProps {
+  operator?: Operator | null;
+  departments?: Department[];
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-const CreateOperatorForm = ({ onSuccess, onCancel }: CreateOperatorFormProps) => {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+380');
+const getInitialRole = (operator?: Operator | null): StaffRole =>
+  operator?.role === 'courier' ? 'courier' : 'operator';
+
+const CreateOperatorForm = ({
+  operator = null,
+  departments: providedDepartments = [],
+  onSuccess,
+  onCancel,
+}: CreateOperatorFormProps) => {
+  const isEditMode = Boolean(operator);
+
+  const [fullName, setFullName] = useState(operator?.full_name ?? '');
+  const [email, setEmail] = useState(operator?.email ?? '');
+  const [phone, setPhone] = useState(operator?.phone ?? '+380');
   const [password, setPassword] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
-  const [role, setRole] = useState<StaffRole>('operator');
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentId, setDepartmentId] = useState(operator?.department_id ? String(operator.department_id) : '');
+  const [role, setRole] = useState<StaffRole>(getInitialRole(operator));
+  const [departments, setDepartments] = useState<Department[]>(providedDepartments);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (providedDepartments.length > 0) {
+      setDepartments(providedDepartments);
+      return;
+    }
+
     api.get<{ data: Department[] }>('/departments')
       .then((res) => setDepartments(res.data))
       .catch(() => {});
-  }, []);
+  }, [providedDepartments]);
 
   const isNameValid = fullName.trim().length >= 5;
   const isEmailValid = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
@@ -45,28 +62,37 @@ const CreateOperatorForm = ({ onSuccess, onCancel }: CreateOperatorFormProps) =>
   const isPasswordValid = password.length >= 8;
   const isDeptValid = departmentId !== '';
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!isNameValid || !isEmailValid || !isPhoneValid || !isPasswordValid || !isDeptValid) {
+    if (!isNameValid || !isPhoneValid || !isDeptValid || (!isEditMode && (!isEmailValid || !isPasswordValid))) {
       setError('Будь ласка, перевірте правильність заповнення всіх полів.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await api.post('/operators', {
+      const payload = {
         fullName: fullName.trim(),
-        email,
         phone,
-        password,
         departmentId: Number(departmentId),
         role,
-      });
+      };
+
+      if (isEditMode && operator) {
+        await api.patch(`/operators/${operator.id}`, payload);
+      } else {
+        await api.post('/operators', {
+          ...payload,
+          email,
+          password,
+        });
+      }
+
       onSuccess();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Помилка при створенні оператора');
+      setError(err instanceof Error ? err.message : 'Не вдалося зберегти працівника');
     } finally {
       setIsLoading(false);
     }
@@ -86,8 +112,12 @@ const CreateOperatorForm = ({ onSuccess, onCancel }: CreateOperatorFormProps) =>
           <UserPlus size={24} />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-pine mb-1">Новий співробітник</h2>
-          <p className="text-slate-500 text-sm">Реєстрація оператора або кур'єра</p>
+          <h2 className="text-2xl font-bold text-pine mb-1">
+            {isEditMode ? 'Редагувати працівника' : 'Новий співробітник'}
+          </h2>
+          <p className="text-slate-500 text-sm">
+            {isEditMode ? 'Оновлення ролі, контактів та відділення' : "Реєстрація оператора або кур'єра"}
+          </p>
         </div>
       </div>
 
@@ -120,11 +150,12 @@ const CreateOperatorForm = ({ onSuccess, onCancel }: CreateOperatorFormProps) =>
             placeholder="operator@postline.com"
             maxLength={100}
             value={email}
+            disabled={isEditMode}
             onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
           />
-          <p className={`mt-1.5 ml-1 text-xs ${email.length > 0 && !isEmailValid ? 'text-rose-500' : 'text-slate-400'}`}>
-            Формат: name@example.com
+          <p className={`mt-1.5 ml-1 text-xs ${!isEditMode && email.length > 0 && !isEmailValid ? 'text-rose-500' : 'text-slate-400'}`}>
+            {isEditMode ? 'Email не змінюємо, щоб не ламати логін працівника.' : 'Формат: name@example.com'}
           </p>
         </div>
 
@@ -181,37 +212,39 @@ const CreateOperatorForm = ({ onSuccess, onCancel }: CreateOperatorFormProps) =>
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5 ml-1">Тимчасовий пароль</label>
-          <div className="relative">
-            <input
-              type={isPasswordVisible ? 'text' : 'password'}
-              placeholder="••••••••"
-              minLength={8}
-              maxLength={64}
-              value={password}
-              onChange={(e) => setPassword(e.target.value.replace(/\s/g, ''))}
-              className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
-            />
-            <button
-              type="button"
-              onClick={() => setIsPasswordVisible((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-pine transition-colors"
-            >
-              {isPasswordVisible ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
+        {!isEditMode && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5 ml-1">Тимчасовий пароль</label>
+            <div className="relative">
+              <input
+                type={isPasswordVisible ? 'text' : 'password'}
+                placeholder="••••••••"
+                minLength={8}
+                maxLength={64}
+                value={password}
+                onChange={(e) => setPassword(e.target.value.replace(/\s/g, ''))}
+                className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
+              />
+              <button
+                type="button"
+                onClick={() => setIsPasswordVisible((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-pine transition-colors"
+              >
+                {isPasswordVisible ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+            <p className={`mt-1.5 ml-1 text-xs ${password.length > 0 && !isPasswordValid ? 'text-rose-500' : 'text-slate-400'}`}>
+              Мінімум 8 символів, без пробілів.
+            </p>
           </div>
-          <p className={`mt-1.5 ml-1 text-xs ${password.length > 0 && !isPasswordValid ? 'text-rose-500' : 'text-slate-400'}`}>
-            Мінімум 8 символів, без пробілів.
-          </p>
-        </div>
+        )}
 
         <button
           type="submit"
           disabled={isLoading}
           className="w-full bg-pine text-white py-4 rounded-xl font-bold hover:bg-pine/90 transition-all shadow-lg active:scale-[0.98] mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Створення...' : 'Зареєструвати'}
+          {isLoading ? 'Збереження...' : isEditMode ? 'Зберегти зміни' : 'Зареєструвати'}
         </button>
       </form>
     </div>

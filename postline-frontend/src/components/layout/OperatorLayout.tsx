@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -11,6 +11,33 @@ import {
   X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import type { Role } from '../../types/user';
+
+type NavigationItem = {
+  name: string;
+  path: string;
+  icon: ReactNode;
+  roles: Role[];
+};
+
+const navigation: NavigationItem[] = [
+  { name: 'Відправлення', path: '/operator', icon: <LayoutDashboard size={20} />, roles: ['operator'] },
+  { name: 'Нова реєстрація', path: '/operator/new-shipment', icon: <PlusCircle size={20} />, roles: ['operator'] },
+  { name: 'Зміна статусу', path: '/operator/status-change', icon: <RefreshCcw size={20} />, roles: ['operator'] },
+  { name: "Кур'єрська доставка", path: '/operator/courier-delivery', icon: <Truck size={20} />, roles: ['operator', 'courier'] },
+  { name: 'Маршрути', path: '/operator/routes', icon: <Map size={20} />, roles: ['operator'] },
+];
+
+const getRoleLabel = (role?: Role) => {
+  switch (role) {
+    case 'courier':
+      return "Кур'єр";
+    case 'operator':
+      return 'Оператор';
+    default:
+      return 'Працівник';
+  }
+};
 
 const OperatorLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -19,13 +46,7 @@ const OperatorLayout = () => {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
 
-  const navigation = [
-    { name: 'Відправлення', path: '/operator', icon: <LayoutDashboard size={20} /> },
-    { name: 'Нова реєстрація', path: '/operator/new-shipment', icon: <PlusCircle size={20} /> },
-    { name: 'Зміна статусу', path: '/operator/status-change', icon: <RefreshCcw size={20} /> },
-    { name: "Кур'єрська доставка", path: '/operator/courier-delivery', icon: <Truck size={20} /> },
-    { name: 'Маршрути', path: '/operator/routes', icon: <Map size={20} /> },
-  ];
+  const visibleNavigation = navigation.filter((item) => user && item.roles.includes(user.role));
 
   const initials = user?.fullName
     ?.split(' ')
@@ -56,8 +77,10 @@ const OperatorLayout = () => {
         </div>
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
-          <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Панель оператора</p>
-          {navigation.map((item) => {
+          <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
+            Панель {getRoleLabel(user?.role).toLowerCase()}
+          </p>
+          {visibleNavigation.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
@@ -96,14 +119,14 @@ const OperatorLayout = () => {
               <Menu size={24} />
             </button>
             <div className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
-              {subtitle} <span className="text-slate-300">/</span> <span className="text-pine">{user?.role === 'courier' ? 'Courier' : 'Operator'}</span>
+              {subtitle} <span className="text-slate-300">/</span> <span className="text-pine">{getRoleLabel(user?.role)}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-900 leading-none">{user?.fullName ?? 'PostLine Staff'}</p>
-              <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-bold">{user?.role ?? 'operator'}</p>
+              <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-bold">{getRoleLabel(user?.role)}</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-pine/10 border border-pine/20 flex items-center justify-center text-pine font-bold">
@@ -135,7 +158,7 @@ const OperatorLayout = () => {
               </button>
             </div>
             <nav className="space-y-1 flex-1 overflow-y-auto">
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <Link

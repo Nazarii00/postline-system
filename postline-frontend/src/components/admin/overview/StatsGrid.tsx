@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { MapPin, Package, TrendingUp, Users } from "lucide-react";
 
 type Stats = {
@@ -11,7 +12,7 @@ type StatCard = {
   title: string;
   value: string;
   description: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 };
 
 type StatsGridProps = {

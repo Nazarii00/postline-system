@@ -23,9 +23,9 @@ export const TrackingTimeline = ({ history, rawStatus }: Props) => (
             )}
             <div className="flex flex-col items-center shrink-0 z-10">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                item.isAlert ? 'bg-red-100 text-red-500 border-2 border-red-200' 
-                : item.isCompleted ? 'bg-pine text-white shadow-sm' 
-                : 'bg-slate-50 text-slate-300 border-2 border-slate-200'
+                item.isAlert ? 'bg-red-100 text-red-500 border-2 border-red-200'
+                  : item.isCompleted ? 'bg-pine text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-300 border-2 border-slate-200'
               }`}>
                 {item.isAlert ? <AlertCircle size={20} /> : item.isCompleted ? <CheckCircle2 size={20} /> : <CircleDashed size={20} />}
               </div>

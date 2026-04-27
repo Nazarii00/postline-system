@@ -84,23 +84,23 @@ export const router = createBrowserRouter([
     children: [
     {
       index: true,
-      element: <OperatorShipmentsPage/>
+      element: <ProtectedRoute element={<OperatorShipmentsPage/>} allowedRoles={['operator']} />
     },
     {
       path: 'new-shipment',
-      element: <NewShipmentPage />
+      element: <ProtectedRoute element={<NewShipmentPage />} allowedRoles={['operator']} />
     },
     {
       path: 'status-change',
-      element: <StatusChangePage/>
+      element: <ProtectedRoute element={<StatusChangePage/>} allowedRoles={['operator']} />
     },
     {
       path: 'courier-delivery',
-      element: <CourierDeliveryPage/>
+      element: <ProtectedRoute element={<CourierDeliveryPage/>} allowedRoles={['operator', 'courier']} />
     },
     {
       path: 'routes',
-      element: <RoutesPage />
+      element: <ProtectedRoute element={<RoutesPage />} allowedRoles={['operator']} />
     },
   ],
   },

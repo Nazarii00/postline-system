@@ -9,9 +9,9 @@ export const TrackingHeader = ({ data }: { data: ParcelData }) => (
         {data.trackingNumber}
       </h2>
       <div className="flex flex-wrap items-center gap-4 text-slate-500 mt-4 text-sm font-semibold">
-        <span className="flex items-center gap-1.5"><Calendar size={16} className="text-slate-400"/> {data.registrationDate}</span>
-        <span className="flex items-center gap-1.5"><Package size={16} className="text-slate-400"/> {data.type}</span>
-        <span className="flex items-center gap-1.5"><MapPin size={16} className="text-slate-400"/> {data.route}</span>
+        <span className="flex items-center gap-1.5"><Calendar size={16} className="text-slate-400" /> {data.registrationDate}</span>
+        <span className="flex items-center gap-1.5"><Package size={16} className="text-slate-400" /> {data.type}</span>
+        <span className="flex items-center gap-1.5"><MapPin size={16} className="text-slate-400" /> {data.route}</span>
       </div>
     </div>
     <div className="bg-emerald-100 text-emerald-700 px-6 py-3 rounded-2xl font-bold border border-emerald-200 flex items-center gap-3 text-base whitespace-nowrap">

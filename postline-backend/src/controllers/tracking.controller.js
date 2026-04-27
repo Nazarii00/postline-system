@@ -11,40 +11,43 @@ const statusMap = {
   cancelled: "Скасовано",
 };
 
-// Хелпер для захисту ПІБ
+const typeMap = {
+  parcel: "Посилка",
+  package: "Вантаж",
+  letter: "Лист",
+};
+
 const maskName = (fullName) => {
   if (!fullName) return "Невідомо";
   const parts = fullName.split(" ");
-  if (parts.length === 1) return parts[0].substring(0, 2) + "***";
+  if (parts.length === 1) return `${parts[0].substring(0, 2)}***`;
   return `${parts[0].substring(0, 3)}*** ${parts[1].charAt(0)}.`;
 };
 
-const getTrackingHandler = async (req, res) => {
+const getTrackingHandler = async (req, res, next) => {
   try {
     const { trackingNumber } = req.params;
-
-    // 1. Беремо дані з репозиторію
     const parcel = await trackingRepository.getShipmentByTrackingNumber(trackingNumber);
 
     if (!parcel) {
       return res.status(404).json({ message: "Відправлення не знайдено" });
     }
 
-    // 2. Беремо історію з репозиторію
     const historyRows = await trackingRepository.getShipmentHistory(parcel.id);
-
-    // 3. Будуємо таймлайн (Пройдені етапи)
-    let timeline = historyRows.map((h) => ({
-      status: statusMap[h.status_set] || h.status_set,
-      date: new Date(h.created_at).toLocaleString("uk-UA", {
-        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+    const timeline = historyRows.map((item) => ({
+      status: statusMap[item.status_set] || item.status_set,
+      date: new Date(item.created_at).toLocaleString("uk-UA", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       }),
-      location: h.city && h.address ? `${h.city}, ${h.address}` : h.notes || "Транзит",
+      location: item.city && item.address ? `${item.city}, ${item.address}` : item.notes || "Транзит",
       isCompleted: true,
       isAlert: false,
     }));
 
-    // Додаємо інформацію про кур'єра, якщо були невдалі спроби
     if (parcel.is_courier && parcel.failed_attempts > 0) {
       timeline.push({
         status: "Невдала спроба доставки",
@@ -55,7 +58,6 @@ const getTrackingHandler = async (req, res) => {
       });
     }
 
-    // Будуємо майбутні (сірі) кроки
     const isFinished = ["delivered", "cancelled", "returned"].includes(parcel.status);
     if (!isFinished) {
       const flow = parcel.is_courier
@@ -66,30 +68,29 @@ const getTrackingHandler = async (req, res) => {
       if (currentIndex !== -1) {
         for (let i = currentIndex + 1; i < flow.length; i++) {
           const futureStatus = flow[i];
-          let expectedLoc = "Очікується";
+          let expectedLocation = "Очікується";
 
           if (futureStatus === "ready_for_pickup" || futureStatus === "arrived") {
-            expectedLoc = `${parcel.dest_city}, ${parcel.dest_address}`;
+            expectedLocation = `${parcel.dest_city}, ${parcel.dest_address}`;
           } else if (futureStatus === "delivered" && parcel.is_courier) {
-            expectedLoc = "Кур'єрська доставка на адресу";
+            expectedLocation = "Кур'єрська доставка на адресу";
           }
 
           timeline.push({
             status: statusMap[futureStatus],
-            location: expectedLoc,
+            location: expectedLocation,
             isCompleted: false,
           });
         }
       }
     }
 
-    // 4. Формуємо красиву відповідь
     return res.status(200).json({
       trackingNumber: parcel.tracking_number,
       status: statusMap[parcel.status],
       rawStatus: parcel.status,
       registrationDate: new Date(parcel.created_at).toLocaleDateString("uk-UA"),
-      type: parcel.shipment_type === "parcel" ? "Посилка" : parcel.shipment_type === "package" ? "Вантаж" : "Лист",
+      type: typeMap[parcel.shipment_type] || parcel.shipment_type,
       route: `${parcel.origin_city} → ${parcel.dest_city}`,
       sender: {
         name: maskName(parcel.sender_name),
@@ -104,7 +105,7 @@ const getTrackingHandler = async (req, res) => {
       details: {
         weight: `${parcel.weight_kg} кг`,
         dimensions: `${parcel.length_cm}×${parcel.width_cm}×${parcel.height_cm} см`,
-        declaredValue: `${parcel.declared_value} грн`,
+        declaredValue: `${parcel.declared_value ?? 0} грн`,
       },
       financials: {
         cost: `${parcel.total_cost} грн`,
@@ -114,8 +115,7 @@ const getTrackingHandler = async (req, res) => {
       history: timeline,
     });
   } catch (error) {
-    console.error("Помилка в getTrackingHandler:", error);
-    return res.status(500).json({ message: "Внутрішня помилка сервера" });
+    return next(error);
   }
 };
 

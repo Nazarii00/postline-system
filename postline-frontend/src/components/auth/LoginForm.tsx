@@ -58,10 +58,7 @@ const LoginForm = () => {
         <p className="text-slate-500 text-sm">Увійдіть до свого особистого кабінету</p>
       </div>
 
-      {/* Підключили handleSubmit замість заглушки */}
       <form className="space-y-5" onSubmit={handleSubmit}>
-        
-        {/* Виведення помилки, якщо вона є */}
         {error && (
           <div className="p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-sm">
             {error}

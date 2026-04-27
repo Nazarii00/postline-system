@@ -1,8 +1,7 @@
 const {
   createCourierDelivery,
   getCourierDeliveryById,
-  getCourierDeliveriesByShipment,
-  getCourierDeliveriesByCourier,
+  listCourierDeliveries,
   updateCourierDeliveryStatus,
 } = require("../repositories/courier.repository");
 
@@ -19,7 +18,10 @@ const createCourierDeliveryHandler = async (req, res, next) => {
       notes,
     });
 
-    return res.status(201).json({ data: delivery, message: "Кур'єрська доставка успішно створена" });
+    return res.status(201).json({
+      data: delivery,
+      message: "Кур'єрська доставка успішно створена",
+    });
   } catch (error) {
     return next(error);
   }
@@ -40,16 +42,14 @@ const getCourierDeliveryHandler = async (req, res, next) => {
 
 const listCourierDeliveriesHandler = async (req, res, next) => {
   try {
-    const { shipmentId, courierId } = req.query;
+    const { shipmentId, courierId, status } = req.query;
+    const effectiveCourierId = req.user.role === "courier" ? req.user.sub : courierId;
 
-    let deliveries;
-    if (shipmentId) {
-      deliveries = await getCourierDeliveriesByShipment(shipmentId);
-    } else if (courierId) {
-      deliveries = await getCourierDeliveriesByCourier(courierId);
-    } else {
-      return res.status(400).json({ message: "Вкажіть shipmentId або courierId" });
-    }
+    const deliveries = await listCourierDeliveries({
+      shipmentId: shipmentId ? Number(shipmentId) : null,
+      courierId: effectiveCourierId ? Number(effectiveCourierId) : null,
+      status: status || null,
+    });
 
     return res.status(200).json({ data: deliveries });
   } catch (error) {
@@ -57,7 +57,6 @@ const listCourierDeliveriesHandler = async (req, res, next) => {
   }
 };
 
-// Оператор вносить результат після повернення кур'єра
 const updateCourierDeliveryStatusHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -68,8 +67,15 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
       return res.status(404).json({ message: "Кур'єрська доставка не знайдена" });
     }
 
+    if (req.user.role === "courier" && delivery.courier_id !== req.user.sub) {
+      return res.status(403).json({ message: "Немає прав для оновлення цієї доставки" });
+    }
+
     const updated = await updateCourierDeliveryStatus(id, { status, failureReason, notes });
-    return res.status(200).json({ data: updated, message: "Статус доставки оновлено" });
+    return res.status(200).json({
+      data: updated,
+      message: "Статус доставки оновлено",
+    });
   } catch (error) {
     return next(error);
   }

@@ -1,9 +1,10 @@
 const express = require("express");
-const { register, login, getProfile, updateProfile } = require("../controllers/auth.controller");
+const { register, login, getProfile, updateProfile, changePassword } = require("../controllers/auth.controller");
 const {
   registerValidation,
   loginValidation,
   updateProfileValidation,
+  changePasswordValidation,
 } = require("../validators/auth.validators");
 const { validate } = require("../middleware/validate.middleware");
 const { authGuard } = require("../middleware/auth.middleware");
@@ -15,5 +16,6 @@ authRouter.post("/login", loginValidation, validate, login);
 authRouter.get("/me", authGuard, getProfile);
 authRouter.put("/me", authGuard, updateProfileValidation, validate, updateProfile);
 authRouter.patch("/me", authGuard, updateProfileValidation, validate, updateProfile);
+authRouter.patch("/me/password", authGuard, changePasswordValidation, validate, changePassword);
 
 module.exports = { authRouter };
