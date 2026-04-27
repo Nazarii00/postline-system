@@ -53,7 +53,7 @@ type ConfirmCourierRouteParams = {
 };
 
 export type ConfirmedCourierRoute = {
-  id: number;
+  id: number | string;
   courier_id: number;
   operator_id: number | null;
   start_address: string;

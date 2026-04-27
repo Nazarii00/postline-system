@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 
+const READ_NOTIFICATIONS_KEY = 'postline-read-notifications';
+
 type NotificationItem = {
   id: string;
   shipmentId: number;
@@ -26,7 +28,7 @@ type NotificationItem = {
 };
 
 type NotificationApiItem = {
-  id: number;
+  id: string;
   shipment_id: number;
   type: string;
   title: string;
@@ -35,6 +37,16 @@ type NotificationApiItem = {
   created_at: string;
   tracking_number: string;
   shipment_status: string;
+};
+
+const getStoredReadIds = () => {
+  try {
+    const raw = localStorage.getItem(READ_NOTIFICATIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
 };
 
 const statusView: Record<string, { title: string; icon: LucideIcon; color: string; bg: string }> = {
@@ -135,6 +147,7 @@ const formatNotificationTime = (value: string) => {
 const NotificationsPage = () => {
   const navigate = useNavigate();
   const [apiNotifications, setApiNotifications] = useState<NotificationApiItem[]>([]);
+  const [readIds, setReadIds] = useState<string[]>(getStoredReadIds);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -146,6 +159,10 @@ const NotificationsPage = () => {
       })
       .finally(() => setIsLoading(false));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(readIds));
+  }, [readIds]);
 
   const notifications = useMemo<NotificationItem[]>(() =>
     apiNotifications
@@ -165,26 +182,28 @@ const NotificationsPage = () => {
           message: notification.message,
           time: formatNotificationTime(notification.created_at),
           createdAt: notification.created_at,
-          isRead: Boolean(notification.read_at),
+          isRead: Boolean(notification.read_at) || readIds.includes(notificationId),
           icon: view.icon,
           color: view.color,
           bg: view.bg,
         };
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-  [apiNotifications]);
+  [apiNotifications, readIds]);
 
   const markAllAsRead = async () => {
     await api.patch('/notifications/read-all', {});
+    setReadIds((prev) => Array.from(new Set([...prev, ...notifications.map((note) => note.id)])));
     const now = new Date().toISOString();
     setApiNotifications((prev) => prev.map((note) => ({ ...note, read_at: note.read_at || now })));
   };
 
   const openNotification = async (note: NotificationItem) => {
     await api.patch(`/notifications/${note.id}/read`, {});
+    setReadIds((prev) => prev.includes(note.id) ? prev : [...prev, note.id]);
     const now = new Date().toISOString();
     setApiNotifications((prev) =>
-      prev.map((item) => item.id === Number(note.id) ? { ...item, read_at: item.read_at || now } : item)
+      prev.map((item) => item.id === note.id ? { ...item, read_at: item.read_at || now } : item)
     );
     navigate(`/client/shipment/${note.shipmentId}`);
   };

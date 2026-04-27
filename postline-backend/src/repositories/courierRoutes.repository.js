@@ -1,11 +1,13 @@
 const db = require("../db");
 
+const ROUTE_NOTE_MARKER = "Підтверджений маршрут:";
+
 const fetchDeliveriesForRoute = (deliveryIds) =>
   db.many(
     `SELECT cd.id,
             cd.courier_id,
             cd.status,
-            cd.route_id,
+            cd.notes,
             cd.to_address,
             cd.shipment_id,
             s.tracking_number,
@@ -23,57 +25,58 @@ const createConfirmedCourierRoute = ({
   startAddress,
   distanceMeters,
   durationSeconds,
-  geometry,
   stops,
 }) =>
   db.tx(async (client) => {
-    const { rows: [route] } = await client.query(
-      `INSERT INTO courier_routes
-       (courier_id, operator_id, start_address, distance_meters, duration_seconds, geometry)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-       RETURNING *`,
-      [
-        courierId,
-        operatorId || null,
-        startAddress,
-        distanceMeters || null,
-        durationSeconds || null,
-        JSON.stringify(geometry || null),
-      ]
-    );
-
+    const routeId = Date.now();
+    const confirmedAt = new Date().toISOString();
     const savedStops = [];
+
     for (const stop of stops) {
-      const { rows: [savedStop] } = await client.query(
-        `INSERT INTO courier_route_stops
-         (route_id, courier_delivery_id, stop_order, to_address, resolved_address, lat, lng)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [
-          route.id,
-          stop.deliveryId,
-          stop.order,
-          stop.toAddress,
-          stop.resolvedAddress || null,
-          stop.lat ?? null,
-          stop.lng ?? null,
-        ]
-      );
+      const note = [
+        `${ROUTE_NOTE_MARKER} #${routeId}`,
+        `Порядок: ${stop.order}`,
+        `Старт: ${startAddress}`,
+        distanceMeters ? `Дистанція: ${distanceMeters} м` : null,
+        durationSeconds ? `Тривалість: ${durationSeconds} с` : null,
+        `Підтверджено: ${confirmedAt}`,
+      ].filter(Boolean).join("; ");
 
-      await client.query(
+      const { rows: [updatedDelivery] } = await client.query(
         `UPDATE courier_deliveries
-         SET route_id = $1, route_order = $2
-         WHERE id = $3`,
-        [route.id, stop.order, stop.deliveryId]
+         SET notes = CONCAT_WS(E'\n', NULLIF(notes, ''), $2)
+         WHERE id = $1
+         RETURNING id, shipment_id, to_address, notes`,
+        [stop.deliveryId, note]
       );
 
-      savedStops.push(savedStop);
+      savedStops.push({
+        id: updatedDelivery.id,
+        route_id: routeId,
+        courier_delivery_id: updatedDelivery.id,
+        shipment_id: updatedDelivery.shipment_id,
+        stop_order: stop.order,
+        to_address: updatedDelivery.to_address,
+        resolved_address: stop.resolvedAddress || null,
+        lat: stop.lat ?? null,
+        lng: stop.lng ?? null,
+      });
     }
 
-    return { ...route, stops: savedStops };
+    return {
+      id: routeId,
+      courier_id: courierId,
+      operator_id: operatorId || null,
+      start_address: startAddress,
+      distance_meters: distanceMeters || null,
+      duration_seconds: durationSeconds || null,
+      confirmed_at: confirmedAt,
+      stops: savedStops,
+    };
   });
 
 module.exports = {
+  ROUTE_NOTE_MARKER,
   fetchDeliveriesForRoute,
   createConfirmedCourierRoute,
 };

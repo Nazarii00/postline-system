@@ -6,10 +6,6 @@ const {
 } = require("../repositories/courier.repository");
 const { getShipmentById } = require("../repositories/shipments.repository");
 const { findUserById } = require("../repositories/users.repository");
-const {
-  notifyShipmentStatusChange,
-  notifyCourierDeliveryFailed,
-} = require("../services/notification.service");
 
 const allowedCourierStatusTransitions = {
   assigned: ["delivered", "failed"],
@@ -171,19 +167,6 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
     const updated = await updateCourierDeliveryStatus(id, { status, failureReason, notes });
     if (!updated) {
       return res.status(404).json({ message: "Кур'єрська доставка не знайдена" });
-    }
-
-    if (status === "delivered") {
-      await notifyShipmentStatusChange(updated.shipment);
-    }
-
-    if (status === "failed") {
-      await notifyCourierDeliveryFailed({
-        shipment: updated.shipment,
-        failureReason,
-        failedAttempts: updated.failedAttempts,
-        courierPickupFallback: updated.courierPickupFallback,
-      });
     }
 
     return res.status(200).json({

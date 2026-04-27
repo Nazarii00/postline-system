@@ -14,7 +14,6 @@ const {
 
 const { findOrCreateUserByPhone, findUserById } = require("../repositories/users.repository");
 const { getRouteByDepartments } = require("../repositories/routes.repository");
-const { notifyShipmentStatusChange } = require("../services/notification.service");
 
 const getOperatorDepartmentId = async (operatorId) => {
   const operator = await findUserById(operatorId);
@@ -192,7 +191,6 @@ const changeStatusHandler = async (req, res, next) => {
     }
 
     const updated = await changeShipmentStatus(id, { status, operatorId, departmentId, notes });
-    await notifyShipmentStatusChange(updated);
 
     return res.status(200).json({ data: updated, message: "Статус успішно оновлено" });
   } catch (error) {

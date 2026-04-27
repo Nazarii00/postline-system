@@ -42,9 +42,7 @@ const listCourierDeliveries = ({ shipmentId, courierId, status, departmentId } =
          $4::int IS NULL
          OR (s.current_dept_id = $4 AND s.dest_dept_id = $4)
        )
-     ORDER BY cd.route_id DESC NULLS LAST,
-              cd.route_order ASC NULLS LAST,
-              cd.attempt_datetime DESC`,
+     ORDER BY cd.attempt_datetime DESC`,
     [shipmentId || null, courierId || null, status || null, departmentId || null]
   );
 

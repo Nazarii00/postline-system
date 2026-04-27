@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 require("./db");
-const { ensureApplicationSchema } = require("./db/ensureSchema");
 const { authRouter } = require("./routes/auth.routes");
 const { departmentsRouter } = require("./routes/departments.routes"); // ← було branchRouter
 const { shipmentRouter } = require("./routes/shipments.routes");
@@ -15,10 +14,6 @@ const { tariffRouter } = require("./routes/tariffs.routes");
 const { trackingRouter } = require("./routes/tracking.routes");
 const { notificationsRouter } = require("./routes/notifications.routes");
 const { errorHandler } = require("./middleware/error.middleware");
-
-ensureApplicationSchema().catch((error) => {
-  console.error("Не вдалося підготувати прикладну схему БД:", error.message);
-});
 
 const app = express();
 app.use(helmet());

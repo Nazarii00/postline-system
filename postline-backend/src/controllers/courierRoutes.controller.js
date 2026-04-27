@@ -1,4 +1,5 @@
 const {
+  ROUTE_NOTE_MARKER,
   fetchDeliveriesForRoute,
   createConfirmedCourierRoute,
 } = require("../repositories/courierRoutes.repository");
@@ -91,8 +92,8 @@ const confirmCourierRouteHandler = async (req, res, next) => {
       throw createError(400, "Підтвердити можна тільки доставки зі статусом assigned");
     }
 
-    if (deliveries.some((delivery) => delivery.route_id)) {
-      throw createError(400, "Одна або кілька доставок уже закріплені за підтвердженим маршрутом");
+    if (deliveries.some((delivery) => delivery.notes?.includes(ROUTE_NOTE_MARKER))) {
+      throw createError(400, "Одна або кілька доставок уже мають підтверджений маршрут у примітках");
     }
 
     if (req.user.role === "operator") {

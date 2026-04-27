@@ -31,7 +31,5 @@ export type CourierDelivery = {
   receiver_name: string;
   receiver_phone: string;
   courier_name: string | null;
-  route_id?: number | null;
-  route_order?: number | null;
   failed_attempts?: number | null;
 };
