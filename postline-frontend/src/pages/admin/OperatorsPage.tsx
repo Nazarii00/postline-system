@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { UserPlus } from "lucide-react";
 import { api } from '../../services/api';
 import CreateOperatorForm from '../../components/admin/CreateOperatorForm';
+import EditOperatorModal from '../../components/admin/operators/EditOperatorModal';
 import OperatorsTable from '../../components/admin/operators/OperatorsTable';
 import type { Operator, Department } from '../../types/operators';
 
@@ -11,7 +12,7 @@ const OperatorsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingOperator, setEditingOperator] = useState<Operator | null>(null);
+  const [editingOperator, setEditingOperator] = useState<Operator | null>(null);  // ← додали
 
   const fetchOperators = useCallback(async () => {
     setIsLoading(true);
@@ -30,41 +31,27 @@ const OperatorsPage = () => {
     fetchOperators();
     api.get<{ data: Department[] }>('/departments')
       .then((res) => setDepartments(res.data || []))
-      .catch(() => {}); // Ігноруємо помилку відділень, щоб не блокувати операторів
+      .catch(() => {});
   }, [fetchOperators]);
 
   const handleToggleStatus = async (op: Operator) => {
-    const shouldActivate = Boolean(op.deleted_at);
-    const action = shouldActivate ? 'Активувати' : 'Деактивувати';
-    if (!window.confirm(`${action} ${op.full_name}?`)) return;
-
+    if (!window.confirm(`${op.deleted_at ? 'Активувати' : 'Деактивувати'} ${op.full_name}?`)) return;
     try {
-      const res = await api.patch<{ data: Operator }>(`/operators/${op.id}/status`, {
-        isActive: shouldActivate,
-      });
+      await api.delete(`/operators/${op.id}`);
       setOperators((prev) =>
         prev.map((o) =>
-          o.id === op.id ? res.data : o
+          o.id === op.id
+            ? { ...o, deleted_at: o.deleted_at ? null : new Date().toISOString() }
+            : o
         )
       );
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Не вдалося змінити статус');
+      alert(err instanceof Error ? err.message : 'Не вдалося змінити статус');
     }
   };
 
-  const handleEdit = (op: Operator) => {
+  const handleEdit = (op: Operator) => {   // ← замінили console.log
     setEditingOperator(op);
-    setIsFormOpen(true);
-  };
-
-  const handleCreate = () => {
-    setEditingOperator(null);
-    setIsFormOpen(true);
-  };
-
-  const handleCloseForm = () => {
-    setIsFormOpen(false);
-    setEditingOperator(null);
   };
 
   return (
@@ -81,7 +68,7 @@ const OperatorsPage = () => {
             </p>
           </div>
           <button
-            onClick={handleCreate}
+            onClick={() => setIsFormOpen(true)}
             className="flex items-center justify-center gap-2 px-7 py-3.5 bg-pine text-white rounded-2xl font-bold hover:bg-pine/90 transition-colors whitespace-nowrap shadow-sm"
           >
             <UserPlus size={20} /> Новий оператор
@@ -94,28 +81,38 @@ const OperatorsPage = () => {
           </div>
         )}
 
-        <OperatorsTable 
+        <OperatorsTable
           operators={operators}
           departments={departments}
           isLoading={isLoading}
           onToggleStatus={handleToggleStatus}
           onEdit={handleEdit}
         />
-        
+
       </section>
 
       {isFormOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <CreateOperatorForm
-            operator={editingOperator}
-            departments={departments}
-            onCancel={handleCloseForm}
+            onCancel={() => setIsFormOpen(false)}
             onSuccess={() => {
-              handleCloseForm();
+              setIsFormOpen(false);
               fetchOperators();
             }}
           />
         </div>
+      )}
+
+      {editingOperator && (                          
+        <EditOperatorModal
+          operator={editingOperator}
+          departments={departments}
+          onClose={() => setEditingOperator(null)}
+          onSuccess={() => {
+            setEditingOperator(null);
+            fetchOperators();
+          }}
+        />
       )}
     </main>
   );

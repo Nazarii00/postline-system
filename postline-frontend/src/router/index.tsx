@@ -30,111 +30,65 @@ export const router = createBrowserRouter([
     path: '/',
     element: <PublicLayout/>,
     children: [
-      { 
-        index: true,      
-        element: <HomePage /> 
-      },
-      { 
-        path: 'auth', 
-        element: <AuthPage /> 
-      },
-      {
-        path: 'tracking',
-        element: <TrackingPage />
-      },
-      {
-        path: 'tariffs',
-        element: <TariffsPage />
-      },
-      {
-        path: 'branches',
-        element: <BranchesPage/>
-      }
+      { index: true, element: <HomePage /> },
+      { path: 'auth', element: <AuthPage /> },
+      { path: 'tracking', element: <TrackingPage /> },
+      { path: 'tariffs', element: <TariffsPage /> },
+      { path: 'branches', element: <BranchesPage/> },
     ],
   },
   {
     path: '/client',
     element: <ProtectedRoute element={<ClientLayout />} allowedRoles={['client']} />,
     children: [
-      {
-        index: true,
-        element: <ClientDashboard/>
-      },
-      {
-        path: 'tracking',
-        element: <TrackingPage />
-      },
-      {
-        path: 'notifications',
-        element: <NotificationsPage />
-      },
-      {
-        path: 'profile',
-        element: <ProfilePage />
-      },
-      {
-        path: 'shipment/:id',
-        element: <ShipmentDetailPage />
-      }
+      { index: true, element: <ClientDashboard/> },
+      { path: 'tracking', element: <TrackingPage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'profile', element: <ProfilePage /> },
+      { path: 'shipment/:id', element: <ShipmentDetailPage /> },
     ],
   },
   {
     path: '/operator',
     element: <ProtectedRoute element={<OperatorLayout />} allowedRoles={['operator', 'courier']} />,
     children: [
-    {
-      index: true,
-      element: <ProtectedRoute element={<OperatorShipmentsPage/>} allowedRoles={['operator']} />
-    },
-    {
-      path: 'new-shipment',
-      element: <ProtectedRoute element={<NewShipmentPage />} allowedRoles={['operator']} />
-    },
-    {
-      path: 'status-change',
-      element: <ProtectedRoute element={<StatusChangePage/>} allowedRoles={['operator']} />
-    },
-    {
-      path: 'courier-delivery',
-      element: <ProtectedRoute element={<CourierDeliveryPage/>} allowedRoles={['operator', 'courier']} />
-    },
-    {
-      path: 'routes',
-      element: <ProtectedRoute element={<RoutesPage />} allowedRoles={['operator']} />
-    },
-  ],
+      {
+        index: true,
+        element: <ProtectedRoute element={<OperatorShipmentsPage/>} allowedRoles={['operator']} />
+      },
+      {
+        path: 'new-shipment',
+        element: <ProtectedRoute element={<NewShipmentPage />} allowedRoles={['operator']} />
+      },
+      {
+        path: 'status-change',
+        element: <ProtectedRoute element={<StatusChangePage/>} allowedRoles={['operator']} />
+      },
+      {
+        path: 'courier-delivery',
+        element: <ProtectedRoute element={<CourierDeliveryPage/>} allowedRoles={['operator', 'courier']} />
+      },
+      {
+        path: 'routes',
+        element: <ProtectedRoute element={<RoutesPage />} allowedRoles={['operator']} />
+      },
+      {
+        path: 'shipment/:id',                                          // ← додано
+        element: <ProtectedRoute element={<ShipmentDetailPage />} allowedRoles={['operator']} />
+      },
+    ],
   },
   {
     path: '/admin',
     element: <ProtectedRoute element={<AdminLayout />} allowedRoles={['admin']} />,
     children: [
-      {
-        index: true,
-        element: <OverviewPage />
-      },
-      {
-        path: 'operators',
-        element: <OperatorsPage />
-      },
-      {
-        path: 'offices',
-        element: <OfficesPage />
-      },
-      {
-        path: 'tariffs',
-        element: <ControlTariffsPage />
-      },
-      {
-        path: 'reports',
-        element: <ReportsPage />
-      },
-      {
-        path: 'shipments',
-        element: <AllShipmentsPage />
-      },
-      { path: 'shipment/:id', 
-        element: <ShipmentDetailPage /> 
-      }
-    ]
-  }
+      { index: true, element: <OverviewPage /> },
+      { path: 'operators', element: <OperatorsPage /> },
+      { path: 'offices', element: <OfficesPage /> },
+      { path: 'tariffs', element: <ControlTariffsPage /> },
+      { path: 'reports', element: <ReportsPage /> },
+      { path: 'shipments', element: <AllShipmentsPage /> },
+      { path: 'shipment/:id', element: <ShipmentDetailPage /> },
+    ],
+  },
 ])

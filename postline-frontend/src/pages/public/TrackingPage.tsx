@@ -96,7 +96,7 @@ const TrackingPage = () => {
               />
             </div>
 
-            <TrackingTimeline history={parcelData.history} rawStatus={parcelData.rawStatus} />
+            <TrackingTimeline history={parcelData.history} rawStatus={parcelData.rawStatus} shipmentId={parcelData.shipmentId}/>
           </div>
         )}
       </section>
