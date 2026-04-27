@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import type { User } from "../../types/user";
@@ -19,6 +19,7 @@ type LoginResponse = {
 
 const LoginForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +40,10 @@ const LoginForm = () => {
       setAuth(data.user, data.token);
 
       const role = data.user.role;
-      if (role === "admin") navigate("/admin");
+      const requestedPath = typeof location.state?.from === "string" ? location.state.from : "";
+      if (requestedPath) {
+        navigate(requestedPath, { replace: true });
+      } else if (role === "admin") navigate("/admin");
       else if (role === "operator") navigate("/operator");
       else if (role === "courier") navigate("/operator/courier-delivery");
       else navigate("/client");
