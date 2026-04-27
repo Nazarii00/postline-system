@@ -46,7 +46,13 @@ const OperatorLayout = () => {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
 
-  const visibleNavigation = navigation.filter((item) => user && item.roles.includes(user.role));
+  const visibleNavigation = navigation
+    .filter((item) => user && item.roles.includes(user.role))
+    .map((item) =>
+      user?.role === 'courier' && item.path === '/operator/courier-delivery'
+        ? { ...item, path: '/courier' }
+        : item
+    );
 
   const initials = user?.fullName
     ?.split(' ')

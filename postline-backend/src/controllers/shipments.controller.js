@@ -14,6 +14,7 @@ const {
 
 const { findOrCreateUserByPhone, findUserById } = require("../repositories/users.repository");
 const { getRouteByDepartments } = require("../repositories/routes.repository");
+const { notifyShipmentStatusChange } = require("../services/notification.service");
 
 const getOperatorDepartmentId = async (operatorId) => {
   const operator = await findUserById(operatorId);
@@ -106,7 +107,8 @@ const trackShipmentHandler = async (req, res, next) => {
     if (!shipment) {
       return res.status(404).json({ message: "Відправлення не знайдено" });
     }
-    return res.status(200).json({ data: shipment });
+    const history = await getShipmentHistory(shipment.id);
+    return res.status(200).json({ data: { shipment, history } });
   } catch (error) {
     return next(error);
   }
@@ -114,13 +116,34 @@ const trackShipmentHandler = async (req, res, next) => {
 
 const listShipmentsHandler = async (req, res, next) => {
   try {
-    const { courierOnly, departmentId, status, trackingNumber } = req.query;
+    const {
+      courierOnly,
+      departmentId,
+      status,
+      trackingNumber,
+      clientName,
+      dateFrom,
+      dateTo,
+      search,
+      sortBy,
+      sortOrder,
+    } = req.query;
     const { role, sub } = req.user;
+    const shipmentFilters = {
+      status: status === 'all' ? null : status,
+      trackingNumber,
+      clientName,
+      dateFrom,
+      dateTo,
+      search,
+      sortBy,
+      sortOrder,
+    };
 
     let shipments;
 
     if (role === 'client') {
-      shipments = await getShipmentsByClient(sub);
+      shipments = await getShipmentsByClient(sub, shipmentFilters);
     } else if (role === 'operator') {
       const operatorDeptId = await getOperatorDepartmentId(sub);
       if (!operatorDeptId) {
@@ -129,12 +152,12 @@ const listShipmentsHandler = async (req, res, next) => {
 
       shipments = courierOnly === 'true'
         ? await getCourierShipmentsForCurrentDepartment(operatorDeptId, { trackingNumber })
-        : await getShipmentsByDepartment(operatorDeptId, { status, trackingNumber });
+        : await getShipmentsByDepartment(operatorDeptId, shipmentFilters);
     } else if (role === 'courier') {
       shipments = [];
     } else {
       // admin
-      shipments = await getAllShipments({ departmentId, status, trackingNumber });
+      shipments = await getAllShipments({ departmentId, ...shipmentFilters });
     }
 
     return res.status(200).json({ data: shipments });
@@ -169,6 +192,8 @@ const changeStatusHandler = async (req, res, next) => {
     }
 
     const updated = await changeShipmentStatus(id, { status, operatorId, departmentId, notes });
+    await notifyShipmentStatusChange(updated);
+
     return res.status(200).json({ data: updated, message: "Статус успішно оновлено" });
   } catch (error) {
     // Тригер кине exception при недозволеному переході

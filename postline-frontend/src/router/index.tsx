@@ -14,6 +14,7 @@ import ProfilePage from '../pages/client/ProfilePage'
 import StatusChangePage from '../pages/operator/StatusChangePage'
 import OperatorShipmentsPage from '../pages/operator/OperatorShipmentsPage'
 import CourierDeliveryPage from '../pages/operator/CourierDeliveryPage'
+import CourierDeliveriesPage from '../pages/courier/CourierDeliveriesPage'
 import RoutesPage from '../pages/operator/RoutesPage'
 import AdminLayout from '../components/layout/AdminLayout'
 import OverviewPage from '../pages/admin/OverviewPage'
@@ -76,6 +77,13 @@ export const router = createBrowserRouter([
         path: 'shipment/:id',                                          // ← додано
         element: <ProtectedRoute element={<ShipmentDetailPage />} allowedRoles={['operator']} />
       },
+    ],
+  },
+  {
+    path: '/courier',
+    element: <ProtectedRoute element={<OperatorLayout />} allowedRoles={['courier']} />,
+    children: [
+      { index: true, element: <CourierDeliveriesPage /> },
     ],
   },
   {

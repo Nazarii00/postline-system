@@ -4,6 +4,69 @@ const crypto = require('crypto');
 const generateTrackingNumber = () =>
   'PL' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(2).toString('hex').toUpperCase();
 
+const nullableText = (value) => {
+  if (typeof value !== 'string') return value || null;
+  const trimmed = value.trim();
+  return trimmed || null;
+};
+
+const nullableDate = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+};
+
+const SORT_COLUMNS = {
+  id: 's.id',
+  tracking_number: 's.tracking_number',
+  trackingNumber: 's.tracking_number',
+  status: 's.status',
+  total_cost: 's.total_cost',
+  totalCost: 's.total_cost',
+  created_at: 's.created_at',
+  createdAt: 's.created_at',
+  current_dept_id: 's.current_dept_id',
+  shipment_type: 'sd.shipment_type',
+  shipmentType: 'sd.shipment_type',
+  weight_kg: 'sd.weight_kg',
+  weightKg: 'sd.weight_kg',
+  sender_name: 'LOWER(sender.full_name)',
+  senderName: 'LOWER(sender.full_name)',
+  receiver_name: 'LOWER(receiver.full_name)',
+  receiverName: 'LOWER(receiver.full_name)',
+  origin_city: 'LOWER(origin.city)',
+  originCity: 'LOWER(origin.city)',
+  dest_city: 'LOWER(dest.city)',
+  destCity: 'LOWER(dest.city)',
+};
+
+const buildShipmentOrderBy = ({ sortBy, sortOrder } = {}) => {
+  const column = SORT_COLUMNS[sortBy] || SORT_COLUMNS.created_at;
+  const direction = String(sortOrder).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const fallbackDirection = direction === 'ASC' ? 'ASC' : 'DESC';
+
+  return `ORDER BY ${column} ${direction}, s.id ${fallbackDirection}`;
+};
+
+const normalizeShipmentFilters = ({
+  status,
+  trackingNumber,
+  clientName,
+  dateFrom,
+  dateTo,
+  search,
+  sortBy,
+  sortOrder,
+} = {}) => ({
+  status: nullableText(status),
+  trackingNumber: nullableText(trackingNumber),
+  clientName: nullableText(clientName),
+  dateFrom: nullableDate(dateFrom),
+  dateTo: nullableDate(dateTo),
+  search: nullableText(search),
+  orderBy: buildShipmentOrderBy({ sortBy, sortOrder }),
+});
+
 // Пише в shipments + shipment_details в одній транзакції
 const createShipment = ({
   senderId, receiverId,
@@ -92,8 +155,18 @@ const getShipmentByTracking = (trackingNumber) =>
     [trackingNumber]
   );
 
-const getShipmentsByClient = (clientId) =>
-  db.many(
+const getShipmentsByClient = (clientId, filters = {}) => {
+  const {
+    status,
+    trackingNumber,
+    clientName,
+    dateFrom,
+    dateTo,
+    search,
+    orderBy,
+  } = normalizeShipmentFilters(filters);
+
+  return db.many(
     `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg,
             sender.full_name   AS sender_name,
@@ -106,13 +179,41 @@ const getShipmentsByClient = (clientId) =>
      JOIN users receiver      ON receiver.id = s.receiver_id
      JOIN departments origin  ON origin.id = s.origin_dept_id
      JOIN departments dest    ON dest.id = s.dest_dept_id
-     WHERE s.sender_id = $1 OR s.receiver_id = $1
-     ORDER BY s.created_at DESC`,
-    [clientId]
+     WHERE (s.sender_id = $1 OR s.receiver_id = $1)
+       AND ($2::shipment_status IS NULL OR s.status = $2::shipment_status)
+       AND ($3::varchar IS NULL OR s.tracking_number ILIKE '%' || $3 || '%')
+       AND (
+         $4::varchar IS NULL
+         OR sender.full_name ILIKE '%' || $4 || '%'
+         OR receiver.full_name ILIKE '%' || $4 || '%'
+       )
+       AND ($5::date IS NULL OR s.created_at::date >= $5::date)
+       AND ($6::date IS NULL OR s.created_at::date <= $6::date)
+       AND (
+         $7::varchar IS NULL
+         OR s.tracking_number ILIKE '%' || $7 || '%'
+         OR sender.full_name ILIKE '%' || $7 || '%'
+         OR receiver.full_name ILIKE '%' || $7 || '%'
+         OR to_char(s.created_at::date, 'YYYY-MM-DD') ILIKE '%' || $7 || '%'
+         OR to_char(s.created_at, 'DD.MM.YYYY') ILIKE '%' || $7 || '%'
+       )
+     ${orderBy}`,
+    [clientId, status, trackingNumber, clientName, dateFrom, dateTo, search]
   );
+};
 
-const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {}) =>
-  db.many(
+const getShipmentsByDepartment = (departmentId, filters = {}) => {
+  const {
+    status,
+    trackingNumber,
+    clientName,
+    dateFrom,
+    dateTo,
+    search,
+    orderBy,
+  } = normalizeShipmentFilters(filters);
+
+  return db.many(
     `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg, sd.receiver_address,
             sender.full_name   AS sender_name,
@@ -129,9 +230,25 @@ const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {})
      WHERE s.current_dept_id = $1
        AND ($2::shipment_status IS NULL OR s.status = $2::shipment_status)
        AND ($3::varchar IS NULL OR s.tracking_number ILIKE '%' || $3 || '%')
-     ORDER BY s.created_at DESC`,
-    [departmentId, status || null, trackingNumber || null]
+       AND (
+         $4::varchar IS NULL
+         OR sender.full_name ILIKE '%' || $4 || '%'
+         OR receiver.full_name ILIKE '%' || $4 || '%'
+       )
+       AND ($5::date IS NULL OR s.created_at::date >= $5::date)
+       AND ($6::date IS NULL OR s.created_at::date <= $6::date)
+       AND (
+         $7::varchar IS NULL
+         OR s.tracking_number ILIKE '%' || $7 || '%'
+         OR sender.full_name ILIKE '%' || $7 || '%'
+         OR receiver.full_name ILIKE '%' || $7 || '%'
+         OR to_char(s.created_at::date, 'YYYY-MM-DD') ILIKE '%' || $7 || '%'
+         OR to_char(s.created_at, 'DD.MM.YYYY') ILIKE '%' || $7 || '%'
+       )
+     ${orderBy}`,
+    [departmentId, status, trackingNumber, clientName, dateFrom, dateTo, search]
   );
+};
 
 const getCourierShipmentsForCurrentDepartment = (departmentId, { trackingNumber } = {}) =>
   db.many(
@@ -154,6 +271,7 @@ const getCourierShipmentsForCurrentDepartment = (departmentId, { trackingNumber 
      WHERE s.current_dept_id = $1
        AND s.dest_dept_id = $1
        AND sd.is_courier = TRUE
+       AND COALESCE(s.failed_attempts, 0) < 3
        AND s.status NOT IN ('delivered', 'cancelled', 'returned')
        AND ($2::varchar IS NULL OR s.tracking_number ILIKE '%' || $2 || '%')
        AND NOT EXISTS (
@@ -167,8 +285,22 @@ const getCourierShipmentsForCurrentDepartment = (departmentId, { trackingNumber 
     [departmentId, trackingNumber || null]
   );
 
-const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
-  db.many(
+const getAllShipments = (filters = {}) => {
+  const {
+    departmentId,
+    status,
+    trackingNumber,
+    clientName,
+    dateFrom,
+    dateTo,
+    search,
+    orderBy,
+  } = {
+    departmentId: filters.departmentId || null,
+    ...normalizeShipmentFilters(filters),
+  };
+
+  return db.many(
     `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
             sd.shipment_type, sd.weight_kg,
             sender.full_name   AS sender_name,
@@ -184,9 +316,25 @@ const getAllShipments = ({ departmentId, status, trackingNumber } = {}) =>
      WHERE ($1::int IS NULL OR s.current_dept_id = $1)
        AND ($2::shipment_status IS NULL OR s.status = $2::shipment_status)
        AND ($3::varchar IS NULL OR s.tracking_number ILIKE '%' || $3 || '%')
-     ORDER BY s.created_at DESC`,
-    [departmentId || null, status || null, trackingNumber || null]
+       AND (
+         $4::varchar IS NULL
+         OR sender.full_name ILIKE '%' || $4 || '%'
+         OR receiver.full_name ILIKE '%' || $4 || '%'
+       )
+       AND ($5::date IS NULL OR s.created_at::date >= $5::date)
+       AND ($6::date IS NULL OR s.created_at::date <= $6::date)
+       AND (
+         $7::varchar IS NULL
+         OR s.tracking_number ILIKE '%' || $7 || '%'
+         OR sender.full_name ILIKE '%' || $7 || '%'
+         OR receiver.full_name ILIKE '%' || $7 || '%'
+         OR to_char(s.created_at::date, 'YYYY-MM-DD') ILIKE '%' || $7 || '%'
+         OR to_char(s.created_at, 'DD.MM.YYYY') ILIKE '%' || $7 || '%'
+       )
+     ${orderBy}`,
+    [departmentId, status, trackingNumber, clientName, dateFrom, dateTo, search]
   );
+};
 
 // app.current_user_id потрібен для тригера fn_log_status_change
 const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =>

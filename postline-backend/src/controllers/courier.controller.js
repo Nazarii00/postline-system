@@ -6,6 +6,10 @@ const {
 } = require("../repositories/courier.repository");
 const { getShipmentById } = require("../repositories/shipments.repository");
 const { findUserById } = require("../repositories/users.repository");
+const {
+  notifyShipmentStatusChange,
+  notifyCourierDeliveryFailed,
+} = require("../services/notification.service");
 
 const allowedCourierStatusTransitions = {
   assigned: ["delivered", "failed"],
@@ -40,6 +44,12 @@ const createCourierDeliveryHandler = async (req, res, next) => {
     if (shipment.status !== "ready_for_pickup" || Number(shipment.current_dept_id) !== Number(shipment.dest_dept_id)) {
       return res.status(400).json({
         message: "Кур'єра можна призначити тільки після прибуття у кінцеве відділення та статусу ready_for_pickup",
+      });
+    }
+
+    if (Number(shipment.failed_attempts || 0) >= 3) {
+      return res.status(400).json({
+        message: "Після трьох невдалих кур'єрських спроб відправлення доступне тільки для самовивозу",
       });
     }
 
@@ -85,7 +95,7 @@ const getCourierDeliveryHandler = async (req, res, next) => {
         return res.status(403).json({ message: "Кур'єрська доставка не належить відділенню оператора" });
       }
     }
-    if (req.user.role === "courier" && delivery.courier_id !== req.user.sub) {
+    if (req.user.role === "courier" && Number(delivery.courier_id) !== Number(req.user.sub)) {
       return res.status(403).json({ message: "Немає прав для перегляду цієї доставки" });
     }
     return res.status(200).json({ data: delivery });
@@ -136,7 +146,7 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
       }
     }
 
-    if (req.user.role === "courier" && delivery.courier_id !== req.user.sub) {
+    if (req.user.role === "courier" && Number(delivery.courier_id) !== Number(req.user.sub)) {
       return res.status(403).json({ message: "Немає прав для оновлення цієї доставки" });
     }
 
@@ -159,9 +169,28 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
     }
 
     const updated = await updateCourierDeliveryStatus(id, { status, failureReason, notes });
+    if (!updated) {
+      return res.status(404).json({ message: "Кур'єрська доставка не знайдена" });
+    }
+
+    if (status === "delivered") {
+      await notifyShipmentStatusChange(updated.shipment);
+    }
+
+    if (status === "failed") {
+      await notifyCourierDeliveryFailed({
+        shipment: updated.shipment,
+        failureReason,
+        failedAttempts: updated.failedAttempts,
+        courierPickupFallback: updated.courierPickupFallback,
+      });
+    }
+
     return res.status(200).json({
       data: updated,
-      message: "Статус доставки оновлено",
+      message: updated.courierPickupFallback
+        ? "Третя невдала спроба зафіксована, відправлення переведено у самовивіз"
+        : "Статус доставки оновлено",
     });
   } catch (error) {
     return next(error);

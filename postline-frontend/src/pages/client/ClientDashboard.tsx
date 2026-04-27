@@ -67,11 +67,23 @@ const ClientDashboard = () => {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
 
   useEffect(() => {
-    api.get<{ data: Shipment[] }>('/shipments')
-      .then((res) => setShipments(res.data))
+    const params = new URLSearchParams();
+    if (searchTerm.trim()) params.set('search', searchTerm.trim());
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (sortConfig.key) {
+      params.set('sortBy', sortConfig.key);
+      params.set('sortOrder', sortConfig.direction);
+    }
+
+    const query = params.toString();
+    api.get<{ data: Shipment[] }>(`/shipments${query ? `?${query}` : ''}`)
+      .then((res) => {
+        setShipments(res.data);
+        setError('');
+      })
       .catch(() => setError('Не вдалося завантажити відправлення'))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [searchTerm, statusFilter, sortConfig]);
 
   const handleSort = (key: keyof Shipment) => {
     setSortConfig((prev) => ({

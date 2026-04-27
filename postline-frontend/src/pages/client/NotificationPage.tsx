@@ -11,9 +11,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '../../services/api';
-import type { Shipment, ShipmentStatus } from '../../types/shipment';
-
-const READ_NOTIFICATIONS_KEY = 'postline-read-notifications';
 
 type NotificationItem = {
   id: string;
@@ -26,6 +23,18 @@ type NotificationItem = {
   icon: LucideIcon;
   color: string;
   bg: string;
+};
+
+type NotificationApiItem = {
+  id: number;
+  shipment_id: number;
+  type: string;
+  title: string;
+  message: string;
+  read_at: string | null;
+  created_at: string;
+  tracking_number: string;
+  shipment_status: string;
 };
 
 const statusView: Record<string, { title: string; icon: LucideIcon; color: string; bg: string }> = {
@@ -65,11 +74,29 @@ const statusView: Record<string, { title: string; icon: LucideIcon; color: strin
     color: 'text-emerald-600',
     bg: 'bg-emerald-100',
   },
+  shipment_ready_for_pickup: {
+    title: 'Готове до видачі',
+    icon: CheckCircle,
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-100',
+  },
   delivered: {
     title: 'Відправлення доставлено',
     icon: CheckCircle,
     color: 'text-emerald-600',
     bg: 'bg-emerald-100',
+  },
+  shipment_delivered: {
+    title: 'Відправлення доставлено',
+    icon: CheckCircle,
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-100',
+  },
+  courier_delivery_failed: {
+    title: "Невдала кур'єрська доставка",
+    icon: XCircle,
+    color: 'text-rose-600',
+    bg: 'bg-rose-100',
   },
   returned: {
     title: 'Відправлення повертається',
@@ -83,16 +110,6 @@ const statusView: Record<string, { title: string; icon: LucideIcon; color: strin
     color: 'text-rose-600',
     bg: 'bg-rose-100',
   },
-};
-
-const getStoredReadIds = () => {
-  try {
-    const raw = localStorage.getItem(READ_NOTIFICATIONS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
 };
 
 const formatNotificationTime = (value: string) => {
@@ -115,49 +132,26 @@ const formatNotificationTime = (value: string) => {
   });
 };
 
-const buildMessage = (shipment: Shipment) => {
-  const route = `${shipment.origin_city ?? 'відправника'} → ${shipment.dest_city ?? 'отримувача'}`;
-
-  if (shipment.status === 'ready_for_pickup') {
-    return `Ваше відправлення ${shipment.tracking_number} готове до видачі у місті ${shipment.dest_city}.`;
-  }
-
-  if (shipment.status === 'delivered') {
-    return `Відправлення ${shipment.tracking_number} успішно доставлено отримувачу.`;
-  }
-
-  if (shipment.status === 'cancelled') {
-    return `Відправлення ${shipment.tracking_number} скасовано. Якщо це помилка, зверніться до підтримки.`;
-  }
-
-  return `Поточний маршрут ${shipment.tracking_number}: ${route}.`;
-};
-
 const NotificationsPage = () => {
   const navigate = useNavigate();
-  const [shipments, setShipments] = useState<Shipment[]>([]);
-  const [readIds, setReadIds] = useState<string[]>(getStoredReadIds);
+  const [apiNotifications, setApiNotifications] = useState<NotificationApiItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get<{ data: Shipment[] }>('/shipments')
-      .then((res) => setShipments(res.data || []))
+    api.get<{ data: NotificationApiItem[] }>('/notifications')
+      .then((res) => setApiNotifications(res.data || []))
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Не вдалося завантажити сповіщення');
       })
       .finally(() => setIsLoading(false));
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(readIds));
-  }, [readIds]);
-
   const notifications = useMemo<NotificationItem[]>(() =>
-    shipments
-      .map((shipment) => {
-        const notificationId = `${shipment.id}:${shipment.status}`;
-        const view = statusView[shipment.status as ShipmentStatus] ?? {
+    apiNotifications
+      .map((notification) => {
+        const notificationId = String(notification.id);
+        const view = statusView[notification.type] ?? statusView[notification.shipment_status] ?? {
           title: 'Оновлення відправлення',
           icon: Bell,
           color: 'text-slate-600',
@@ -166,26 +160,32 @@ const NotificationsPage = () => {
 
         return {
           id: notificationId,
-          shipmentId: shipment.id,
-          title: view.title,
-          message: buildMessage(shipment),
-          time: formatNotificationTime(shipment.created_at),
-          createdAt: shipment.created_at,
-          isRead: readIds.includes(notificationId),
+          shipmentId: notification.shipment_id,
+          title: notification.title || view.title,
+          message: notification.message,
+          time: formatNotificationTime(notification.created_at),
+          createdAt: notification.created_at,
+          isRead: Boolean(notification.read_at),
           icon: view.icon,
           color: view.color,
           bg: view.bg,
         };
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-  [shipments, readIds]);
+  [apiNotifications]);
 
-  const markAllAsRead = () => {
-    setReadIds((prev) => Array.from(new Set([...prev, ...notifications.map((note) => note.id)])));
+  const markAllAsRead = async () => {
+    await api.patch('/notifications/read-all', {});
+    const now = new Date().toISOString();
+    setApiNotifications((prev) => prev.map((note) => ({ ...note, read_at: note.read_at || now })));
   };
 
-  const openNotification = (note: NotificationItem) => {
-    setReadIds((prev) => prev.includes(note.id) ? prev : [...prev, note.id]);
+  const openNotification = async (note: NotificationItem) => {
+    await api.patch(`/notifications/${note.id}/read`, {});
+    const now = new Date().toISOString();
+    setApiNotifications((prev) =>
+      prev.map((item) => item.id === Number(note.id) ? { ...item, read_at: item.read_at || now } : item)
+    );
     navigate(`/client/shipment/${note.shipmentId}`);
   };
 

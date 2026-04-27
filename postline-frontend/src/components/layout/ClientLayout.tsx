@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Package,
   User,
+  Bell,
   LogOut,
   Menu,
   X,
@@ -20,6 +21,7 @@ const ClientLayout = () => {
   const navigation = [
     { name: 'Мої відправлення', path: '/client', icon: <Package size={20} /> },
     { name: 'Відстежити посилку', path: '/client/tracking', icon: <LayoutDashboard size={20} /> },
+    { name: 'Сповіщення', path: '/client/notifications', icon: <Bell size={20} /> },
     { name: 'Профіль', path: '/client/profile', icon: <User size={20} /> },
   ];
 

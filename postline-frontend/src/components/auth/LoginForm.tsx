@@ -45,7 +45,7 @@ const LoginForm = () => {
         navigate(requestedPath, { replace: true });
       } else if (role === "admin") navigate("/admin");
       else if (role === "operator") navigate("/operator");
-      else if (role === "courier") navigate("/operator/courier-delivery");
+      else if (role === "courier") navigate("/courier");
       else navigate("/client");
 
     } catch (err: unknown) {

@@ -4,6 +4,9 @@ import {
   Search,
   Filter,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown,
   Package,
   Calendar,
 } from 'lucide-react';
@@ -48,6 +51,23 @@ const getStatusStyle = (status: string) => {
 
 const PAGE_SIZE = 20;
 
+type SortConfig = { key: keyof Shipment | null; direction: 'asc' | 'desc' };
+
+type SortIconProps = {
+  columnKey: keyof Shipment;
+  sortConfig: SortConfig;
+};
+
+const SortIcon = ({ columnKey, sortConfig }: SortIconProps) => {
+  if (sortConfig.key !== columnKey) {
+    return <ArrowUpDown size={14} className="text-slate-300 group-hover:text-pine transition-colors" />;
+  }
+
+  return sortConfig.direction === 'asc'
+    ? <ChevronUp size={16} className="text-pine" />
+    : <ChevronDown size={16} className="text-pine" />;
+};
+
 const AllShipmentsPage = () => {
   const navigate = useNavigate();
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -55,14 +75,35 @@ const AllShipmentsPage = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    api.get<{ data: Shipment[] }>('/shipments')
-      .then((res) => setShipments(res.data))
+    const params = new URLSearchParams();
+    if (searchTerm.trim()) params.set('search', searchTerm.trim());
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (sortConfig.key) {
+      params.set('sortBy', sortConfig.key);
+      params.set('sortOrder', sortConfig.direction);
+    }
+
+    const query = params.toString();
+    api.get<{ data: Shipment[] }>(`/shipments${query ? `?${query}` : ''}`)
+      .then((res) => {
+        setShipments(res.data);
+        setError('');
+      })
       .catch(() => setError('Не вдалося завантажити відправлення'))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [searchTerm, statusFilter, sortConfig]);
+
+  const handleSort = (key: keyof Shipment) => {
+    setPage(1);
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
 
   const filtered = useMemo(() => {
     let result = [...shipments];
@@ -143,11 +184,24 @@ const AllShipmentsPage = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Інформація', 'Учасники', 'Маршрут / Дата', 'Статус', 'Дії'].map((h, i) => (
-                    <th key={h} className={`px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider ${i === 4 ? 'text-right' : ''}`}>
-                      {h}
+                  {[
+                    { label: 'Інформація', key: 'tracking_number' },
+                    { label: 'Учасники', key: 'sender_name' },
+                    { label: 'Маршрут / Дата', key: 'created_at' },
+                    { label: 'Статус', key: 'status' },
+                  ].map(({ label, key }) => (
+                    <th
+                      key={key}
+                      onClick={() => handleSort(key as keyof Shipment)}
+                      className="px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors group select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        {label}
+                        <SortIcon columnKey={key as keyof Shipment} sortConfig={sortConfig} />
+                      </div>
                     </th>
                   ))}
+                  <th className="px-6 py-5 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Дії</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

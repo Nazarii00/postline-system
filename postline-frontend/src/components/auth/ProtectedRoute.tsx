@@ -29,7 +29,7 @@ const ProtectedRoute = ({ element, allowedRoles }: ProtectedRouteProps) => {
       : user.role === 'operator'
         ? '/operator'
         : user.role === 'courier'
-          ? '/operator/courier-delivery'
+          ? '/courier'
           : '/client';
 
     return <Navigate to={fallbackPath} replace />;

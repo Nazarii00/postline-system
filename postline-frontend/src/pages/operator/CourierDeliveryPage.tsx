@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Phone, RefreshCcw, Route, UserCheck, X } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronUp, MapPin, Phone, RefreshCcw, Route, UserCheck, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { OptimizedRouteMap } from '../../components/OptimizedRouteMap';
 import {
+  confirmCourierRoute,
   optimizeCourierRoute,
+  type OptimizedDelivery,
   type OptimizedRouteResult,
 } from '../../services/routeOptimizationService';
 import type { Courier, CourierDelivery, ReadyForCourierShipment } from '../../types/courier';
@@ -60,8 +62,11 @@ const CourierDeliveryPage = () => {
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<number[]>([]);
   const [startAddress, setStartAddress] = useState('');
   const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRouteResult | null>(null);
+  const [routeStops, setRouteStops] = useState<OptimizedDelivery[]>([]);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isConfirmingRoute, setIsConfirmingRoute] = useState(false);
   const [routeError, setRouteError] = useState('');
+  const [routeSuccess, setRouteSuccess] = useState('');
 
   const routeCourierNumber = routeCourierId ? Number(routeCourierId) : null;
   const selectedCourierDeliveries = useMemo(
@@ -76,6 +81,11 @@ const CourierDeliveryPage = () => {
     setDeliveries(res.data);
   };
 
+  const loadAssignableShipments = async () => {
+    const res = await api.get<{ data: ReadyForCourierShipment[] }>('/shipments?courierOnly=true');
+    setShipments(res.data);
+  };
+
   useEffect(() => {
     if (isCourier && user?.id) {
       setRouteCourierId(String(user.id));
@@ -87,8 +97,7 @@ const CourierDeliveryPage = () => {
 
     if (!isCourier) {
       requests.push(
-        api.get<{ data: ReadyForCourierShipment[] }>('/shipments?courierOnly=true')
-          .then((res) => setShipments(res.data)),
+        loadAssignableShipments(),
         api.get<{ data: Courier[] }>(`/operators?departmentId=${user?.departmentId}`)
           .then((res) => setCouriers(res.data.filter((courier) => courier.role === 'courier')))
       );
@@ -111,7 +120,9 @@ const CourierDeliveryPage = () => {
     setRouteCourierId(value);
     setSelectedDeliveryIds([]);
     setOptimizedRoute(null);
+    setRouteStops([]);
     setRouteError('');
+    setRouteSuccess('');
   };
 
   const toggleDeliverySelection = (delivery: CourierDelivery) => {
@@ -132,7 +143,9 @@ const CourierDeliveryPage = () => {
     }
 
     setRouteError('');
+    setRouteSuccess('');
     setOptimizedRoute(null);
+    setRouteStops([]);
     setSelectedDeliveryIds((prev) =>
       prev.includes(delivery.id)
         ? prev.filter((id) => id !== delivery.id)
@@ -142,7 +155,9 @@ const CourierDeliveryPage = () => {
 
   const handleOptimizeRoute = async () => {
     setRouteError('');
+    setRouteSuccess('');
     setOptimizedRoute(null);
+    setRouteStops([]);
 
     if (!routeCourierNumber) {
       setRouteError("Оберіть кур'єра для маршруту");
@@ -167,10 +182,60 @@ const CourierDeliveryPage = () => {
         deliveryIds: selectedDeliveryIds,
       });
       setOptimizedRoute(routeResult);
+      setRouteStops(routeResult.orderedDeliveries);
     } catch (err) {
       setRouteError(err instanceof Error ? err.message : 'Не вдалося оптимізувати маршрут');
     } finally {
       setIsOptimizing(false);
+    }
+  };
+
+  const moveRouteStop = (deliveryId: number, direction: -1 | 1) => {
+    setRouteSuccess('');
+    setRouteStops((prev) => {
+      const index = prev.findIndex((delivery) => delivery.id === deliveryId);
+      const nextIndex = index + direction;
+
+      if (index < 0 || nextIndex < 0 || nextIndex >= prev.length) {
+        return prev;
+      }
+
+      const next = [...prev];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next.map((delivery, orderIndex) => ({ ...delivery, order: orderIndex + 1 }));
+    });
+  };
+
+  const handleConfirmRoute = async () => {
+    if (!optimizedRoute || !routeCourierNumber) return;
+
+    setRouteError('');
+    setRouteSuccess('');
+    setIsConfirmingRoute(true);
+
+    try {
+      const response = await confirmCourierRoute({
+        courierId: routeCourierNumber,
+        startAddress: startAddress.trim(),
+        distanceMeters: optimizedRoute.distanceMeters,
+        durationSeconds: optimizedRoute.durationSeconds,
+        geometry: optimizedRoute.geometry,
+        stops: routeStops.map((delivery, index) => ({
+          deliveryId: delivery.id,
+          order: index + 1,
+          toAddress: delivery.toAddress,
+          resolvedAddress: delivery.resolvedAddress,
+          lat: delivery.lat,
+          lng: delivery.lng,
+        })),
+      });
+
+      setRouteSuccess(`${response.message}. № маршруту: ${response.data.id}`);
+      await loadDeliveries();
+    } catch (err) {
+      setRouteError(err instanceof Error ? err.message : 'Не вдалося підтвердити маршрут');
+    } finally {
+      setIsConfirmingRoute(false);
     }
   };
 
@@ -211,6 +276,9 @@ const CourierDeliveryPage = () => {
       setSelectedDeliveryIds((prev) => prev.filter((id) => id !== deliveryId));
       setOptimizedRoute(null);
       await loadDeliveries();
+      if (!isCourier) {
+        await loadAssignableShipments();
+      }
     } catch {
       setError('Помилка при оновленні статусу');
     }
@@ -361,6 +429,8 @@ const CourierDeliveryPage = () => {
               onChange={(event) => {
                 setStartAddress(event.target.value);
                 setOptimizedRoute(null);
+                setRouteStops([]);
+                setRouteSuccess('');
               }}
               placeholder="Стартова адреса, наприклад: Львів, вул. Городоцька 10"
               className="md:col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
@@ -392,6 +462,12 @@ const CourierDeliveryPage = () => {
           </div>
         )}
 
+        {routeSuccess && (
+          <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl text-sm font-bold">
+            {routeSuccess}
+          </div>
+        )}
+
         {optimizedRoute && (
           <div className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -409,23 +485,55 @@ const CourierDeliveryPage = () => {
               </div>
             </div>
 
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleConfirmRoute}
+                disabled={isConfirmingRoute || routeStops.length === 0}
+                className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm hover:bg-emerald-700 transition-all disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2"
+              >
+                {isConfirmingRoute ? <RefreshCcw size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                {isConfirmingRoute ? 'Підтвердження...' : 'Підтвердити маршрут'}
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
               <div className="lg:col-span-2 bg-slate-50 rounded-3xl border border-slate-200 p-4 space-y-3">
                 <p className="text-sm font-black text-slate-700">Порядок доставок</p>
-                {optimizedRoute.orderedDeliveries.map((delivery) => (
+                {routeStops.map((delivery, index) => (
                   <div key={delivery.id} className="bg-white border border-slate-100 rounded-2xl p-4">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="w-8 h-8 rounded-xl bg-pine text-white flex items-center justify-center text-sm font-black">
-                        {delivery.order}
+                        {index + 1}
                       </span>
                       <span className="font-black text-slate-900">{delivery.trackingNumber}</span>
+                      <div className="ml-auto flex gap-1">
+                        <button
+                          type="button"
+                          title="Вище"
+                          disabled={index === 0}
+                          onClick={() => moveRouteStop(delivery.id, -1)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-pine hover:bg-pine/5 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ChevronUp size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Нижче"
+                          disabled={index === routeStops.length - 1}
+                          onClick={() => moveRouteStop(delivery.id, 1)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-pine hover:bg-pine/5 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ChevronDown size={16} />
+                        </button>
+                      </div>
                     </div>
                     <p className="text-sm text-slate-600">{delivery.toAddress}</p>
                   </div>
                 ))}
               </div>
               <div className="lg:col-span-3">
-                <OptimizedRouteMap route={optimizedRoute} />
+                <OptimizedRouteMap route={{ ...optimizedRoute, orderedDeliveries: routeStops }} />
               </div>
             </div>
           </div>
