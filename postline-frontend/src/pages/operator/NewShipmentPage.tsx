@@ -11,7 +11,7 @@ import { CheckoutFooter } from '../../components/shipment/CheckoutFooter';
 
 const initialFormState: ShipmentFormData = {
   senderPhone: '+380', senderFullName: '', senderCity: '', senderBranch: '',
-  receiverPhone: '+380', receiverFullName: '', receiverCity: '', receiverBranch: '',
+  receiverPhone: '+380', receiverFullName: '', receiverCity: '', receiverBranch: '', receiverAddress: '',
   type: 'parcel', weight: '', declaredValue: '', length: '', width: '', height: '', description: '',
 };
 
@@ -145,6 +145,10 @@ const NewShipmentPage = () => {
       }
     });
 
+    if (isCourier && !formData.receiverAddress.trim()) {
+      newErrors.receiverAddress = "Обов'язкове поле для кур'єрської доставки";
+    }
+
     if (formData.senderPhone && formData.senderPhone.length < 13) {
       newErrors.senderPhone = 'Некоректний формат';
     }
@@ -181,6 +185,7 @@ const NewShipmentPage = () => {
         heightCm: Number(formData.height),
         declaredValue: declaredValueNum || null,
         description: formData.description || null,
+        receiverAddress: isCourier ? formData.receiverAddress.trim() : null,
         isCourier,
       };
 

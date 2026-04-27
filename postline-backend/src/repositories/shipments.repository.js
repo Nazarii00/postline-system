@@ -22,7 +22,10 @@ const createShipment = ({
     );
     if (!tariff) throw new Error('Тариф не знайдено');
 
-    const totalCost = parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * weightKg;
+    const declaredValueNum = Number(declaredValue || 0);
+    const courierPrice = isCourier ? 20 : 0;
+    const insurance = declaredValueNum > 500 ? Math.round(declaredValueNum * 0.005) : 0;
+    const totalCost = parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * weightKg + courierPrice + insurance;
     const trackingNumber = generateTrackingNumber();
 
     const { rows: [shipment] } = await client.query(
@@ -111,13 +114,18 @@ const getShipmentsByClient = (clientId) =>
 const getShipmentsByDepartment = (departmentId, { status, trackingNumber } = {}) =>
   db.many(
     `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
-            sd.shipment_type, sd.weight_kg,
+            sd.shipment_type, sd.weight_kg, sd.receiver_address,
             sender.full_name   AS sender_name,
-            receiver.full_name AS receiver_name
+            receiver.full_name AS receiver_name,
+            receiver.phone     AS receiver_phone,
+            origin.city        AS origin_city,
+            dest.city          AS dest_city
      FROM shipments s
      JOIN shipment_details sd ON sd.shipment_id = s.id
      JOIN users sender        ON sender.id = s.sender_id
      JOIN users receiver      ON receiver.id = s.receiver_id
+     JOIN departments origin   ON origin.id = s.origin_dept_id
+     JOIN departments dest     ON dest.id = s.dest_dept_id
      WHERE s.current_dept_id = $1
        AND ($2::shipment_status IS NULL OR s.status = $2::shipment_status)
        AND ($3::varchar IS NULL OR s.tracking_number ILIKE '%' || $3 || '%')

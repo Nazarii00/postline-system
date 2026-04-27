@@ -20,8 +20,12 @@ const createShipmentHandler = async (req, res, next) => {
       receiverPhone, receiverName, destDeptId,
       tariffId, shipmentType, sizeCategory,
       weightKg, lengthCm, widthCm, heightCm,
-      declaredValue, description, isCourier,
+      declaredValue, description, isCourier, receiverAddress,
     } = req.body;
+
+    if (isCourier && !receiverAddress?.trim()) {
+      return res.status(400).json({ message: "Адреса доставки є обов'язковою для кур'єрської доставки" });
+    }
 
     // Знаходимо або створюємо відправника і одержувача
     const [sender, receiver] = await Promise.all([
@@ -38,7 +42,7 @@ const createShipmentHandler = async (req, res, next) => {
       weightKg, lengthCm, widthCm, heightCm,
       declaredValue, description,
       senderAddress: sender.full_name,
-      receiverAddress: receiver.full_name,
+      receiverAddress: receiverAddress?.trim() || receiver.full_name,
       isCourier: isCourier || false,
     });
 

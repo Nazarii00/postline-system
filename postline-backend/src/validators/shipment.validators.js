@@ -39,6 +39,7 @@ const createShipmentValidation = [
 
   body("declaredValue").optional().isFloat({ min: 0 }),
   body("description").optional().trim().isLength({ max: 500 }),
+  body("receiverAddress").optional().trim().isLength({ max: 200 }).withMessage("Адреса доставки має містити до 200 символів"),
   body("isCourier").optional().isBoolean(),
 ];
 

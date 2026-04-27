@@ -94,6 +94,24 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
           </div>
         </div>
 
+        {isCourier && (
+          <div>
+            <label className={labelClass}>
+              Адреса кур'єрської доставки <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="receiverAddress"
+              value={formData.receiverAddress}
+              onChange={onChange}
+              placeholder="вул. Шевченка 1, кв. 5"
+              maxLength={200}
+              className={getFieldClass('receiverAddress', errors)}
+            />
+            <ErrorMsg field="receiverAddress" errors={errors} />
+          </div>
+        )}
+
         <div>
           <label className={labelClass}>Опис (необов'язково)</label>
           <textarea name="description" value={formData.description} onChange={onChange} placeholder="Короткий опис вмісту..." rows={2}
