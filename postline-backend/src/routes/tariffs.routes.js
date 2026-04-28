@@ -6,13 +6,17 @@ const {
   updateTariffHandler,
   deleteTariffHandler,
 } = require("../controllers/tariffs.controller");
-const { createTariffValidation, updateTariffValidation } = require("../validators/tariff.validators");
+const {
+  createTariffValidation,
+  listTariffsValidation,
+  updateTariffValidation,
+} = require("../validators/tariff.validators");
 const { validate } = require("../middleware/validate.middleware");
 const { authGuard, authorize } = require("../middleware/auth.middleware");
 
 const tariffRouter = express.Router();
 
-tariffRouter.get("/", listTariffsHandler);
+tariffRouter.get("/", listTariffsValidation, validate, listTariffsHandler);
 tariffRouter.get("/:id", getTariffHandler);
 tariffRouter.post("/", authGuard, authorize("admin"), createTariffValidation, validate, createTariffHandler);
 tariffRouter.patch("/:id", authGuard, authorize("admin"), updateTariffValidation, validate, updateTariffHandler);

@@ -2,6 +2,12 @@ import { useState } from 'react';
 import { ScanLine, AlertCircle, CheckCircle2, History, ArrowRight, Package, ArrowRightCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
+import {
+  INPUT_LIMITS,
+  INPUT_PATTERNS,
+  sanitizePlainText,
+  sanitizeTrackingNumber,
+} from '../../utils/formUtils';
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   accepted: ['sorting'],
@@ -10,6 +16,8 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   arrived: ['ready_for_pickup'],
   ready_for_pickup: ['delivered'],
 };
+
+const DESTINATION_STATUSES = new Set(['arrived', 'ready_for_pickup', 'delivered']);
 
 const STATUS_LABELS: Record<string, string> = {
   accepted: 'Прийнято',
@@ -41,6 +49,8 @@ type Shipment = {
   id: number;
   tracking_number: string;
   status: string;
+  origin_dept_id: number;
+  dest_dept_id: number;
   current_dept_id: number;
   sender_name: string;
   receiver_name: string;
@@ -57,6 +67,20 @@ type HistoryItem = {
 };
 
 const labelClass = 'block text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1.5';
+
+const canApplyStatusInDepartment = (
+  shipment: Shipment,
+  nextStatus: string,
+  departmentId?: number | null,
+) => {
+  if (!departmentId) return true;
+
+  const targetDepartmentId = DESTINATION_STATUSES.has(nextStatus)
+    ? shipment.dest_dept_id
+    : shipment.current_dept_id;
+
+  return Number(targetDepartmentId) === Number(departmentId);
+};
 
 const StatusChangePage = () => {
   const user = useAuthStore((state) => state.user);
@@ -87,12 +111,6 @@ const StatusChangePage = () => {
       if (!shipment) {
         setScannedShipment(null);
         setError('Відправлення з таким трекінг-номером не знайдено.');
-        return;
-      }
-
-      if (shipment.current_dept_id !== user?.departmentId) {
-        setScannedShipment(null);
-        setError('Відмовлено. Відправлення не знаходиться у вашому відділенні.');
         return;
       }
 
@@ -136,7 +154,10 @@ const StatusChangePage = () => {
     }
   };
 
-  const availableStatuses = scannedShipment ? (STATUS_TRANSITIONS[scannedShipment.status] ?? []) : [];
+  const workflowStatuses = scannedShipment ? (STATUS_TRANSITIONS[scannedShipment.status] ?? []) : [];
+  const availableStatuses = scannedShipment
+    ? workflowStatuses.filter((status) => canApplyStatusInDepartment(scannedShipment, status, user?.departmentId))
+    : [];
 
   return (
     <div className="max-w-6xl mx-auto w-full space-y-8 pb-10">
@@ -160,8 +181,12 @@ const StatusChangePage = () => {
                 type="text"
                 autoFocus
                 value={trackingInput}
-                onChange={(e) => setTrackingInput(e.target.value)}
+                onChange={(e) => setTrackingInput(sanitizeTrackingNumber(e.target.value))}
                 placeholder="ВІДСКАНУЙТЕ АБО ВВЕДІТЬ ТТН..."
+                required
+                minLength={INPUT_LIMITS.trackingMin}
+                maxLength={INPUT_LIMITS.trackingMax}
+                pattern={INPUT_PATTERNS.trackingNumber}
                 className="flex-1 bg-transparent border-none focus:ring-0 outline-none px-4 py-3 text-lg font-black tracking-widest uppercase text-slate-800 placeholder:text-slate-300 placeholder:font-bold"
               />
               <button
@@ -241,7 +266,9 @@ const StatusChangePage = () => {
                     </select>
                   ) : (
                     <div className="mt-2 text-base font-black text-emerald-600">
-                      Фінальний статус
+                      {workflowStatuses.length > 0
+                        ? 'Немає доступної дії для вашого відділення'
+                        : 'Фінальний статус'}
                     </div>
                   )}
                 </div>
@@ -253,8 +280,9 @@ const StatusChangePage = () => {
                   <input
                     type="text"
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    onChange={(e) => setNotes(sanitizePlainText(e.target.value, INPUT_LIMITS.noteMax))}
                     placeholder="Додаткова інформація..."
+                    maxLength={INPUT_LIMITS.noteMax}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
                   />
                 </div>

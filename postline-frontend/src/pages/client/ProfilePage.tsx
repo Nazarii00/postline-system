@@ -4,6 +4,7 @@ import { type User, type UpdateProfilePayload } from '../../types/user';
 import { ProfileHeader } from '../../components/client/profile/ProfileHeader';
 import { PersonalInfoForm } from '../../components/client/profile/PersonalInfoForm';
 import { SecuritySettings } from '../../components/client/profile/SecuritySettings';
+import { sanitizeEmail, sanitizeName, sanitizeUaPhone } from '../../utils/formUtils';
 
 const ProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<User | null>(null);
@@ -32,9 +33,17 @@ const ProfilePage: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (profile) {
+      const nextValue =
+        name === 'fullName'
+          ? sanitizeName(value)
+          : name === 'phone'
+            ? sanitizeUaPhone(value)
+            : name === 'email'
+              ? sanitizeEmail(value)
+              : value;
       setProfile({
         ...profile,
-        [name]: value,
+        [name]: nextValue,
       });
     }
   };

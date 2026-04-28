@@ -31,6 +31,8 @@ const ControlTariffsPage = () => {
         size: t.sizeCategory || t.size_category || "-",
         basePrice: t.basePrice || t.base_price || 0,
         perKg: t.pricePerKg || t.price_per_kg || 0,
+        courierBaseFee: t.courierBaseFee ?? t.courier_base_fee ?? 0,
+        courierPerKg: t.courierFeePerKg ?? t.courier_fee_per_kg ?? 0,
       }));
 
       setTariffs(formattedTariffs);

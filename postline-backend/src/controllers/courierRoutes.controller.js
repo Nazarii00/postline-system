@@ -88,6 +88,10 @@ const confirmCourierRouteHandler = async (req, res, next) => {
       throw createError(400, "Усі доставки мають належати одному кур'єру");
     }
 
+    if (deliveries.some((delivery) => !delivery.courier_city || delivery.courier_city !== delivery.dest_city)) {
+      throw createError(403, "Кур'єр може підтвердити маршрут тільки для посилок свого міста");
+    }
+
     if (deliveries.some((delivery) => delivery.status !== "assigned")) {
       throw createError(400, "Підтвердити можна тільки доставки зі статусом assigned");
     }

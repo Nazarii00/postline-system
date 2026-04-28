@@ -59,4 +59,6 @@ export interface Tariff {
   size_category: string;
   base_price: string;
   price_per_kg: string;
+  courier_base_fee: string | null;
+  courier_fee_per_kg: string | null;
 }

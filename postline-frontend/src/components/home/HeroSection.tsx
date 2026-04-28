@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { INPUT_LIMITS, INPUT_PATTERNS, sanitizeTrackingNumber } from '../../utils/formUtils';
 
 const quickActions = [
   { label: 'Відправити посилку', path: '/operator/new-shipment' },
@@ -31,8 +32,12 @@ const HeroSection = () => {
           <input
             type="text"
             value={trackingNumber}
-            onChange={(event) => setTrackingNumber(event.target.value)}
+            onChange={(event) => setTrackingNumber(sanitizeTrackingNumber(event.target.value))}
             placeholder="Введіть номер відправлення"
+            inputMode="text"
+            minLength={INPUT_LIMITS.trackingMin}
+            maxLength={INPUT_LIMITS.trackingMax}
+            pattern={INPUT_PATTERNS.trackingNumber}
             className="w-full border border-slate-300 rounded-l-lg px-6 py-4 focus:outline-none focus:border-pine focus:ring-1 focus:ring-pine text-slate-700"
           />
           <button

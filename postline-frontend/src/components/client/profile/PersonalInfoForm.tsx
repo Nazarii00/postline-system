@@ -2,6 +2,7 @@ import React from 'react';
 import { Phone, Mail } from 'lucide-react';
 // Вкажіть правильний шлях до вашого файлу з типами User
 import { type User } from '../../../types/user'; 
+import { INPUT_LIMITS, INPUT_PATTERNS } from '../../../utils/formUtils';
 
 interface PersonalInfoFormProps {
   profile: User; // Використовуємо ваш тип
@@ -56,6 +57,9 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
                 value={profile.fullName} 
                 onChange={onChange}
                 required
+                minLength={INPUT_LIMITS.nameMin}
+                maxLength={INPUT_LIMITS.nameMax}
+                pattern={INPUT_PATTERNS.personName}
                 className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pine/20 focus:border-pine focus:bg-white transition-all text-sm font-medium text-slate-900"
               />
             </div>
@@ -72,6 +76,9 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
                   value={profile.phone} 
                   onChange={onChange}
                   required
+                  inputMode="numeric"
+                  maxLength={13}
+                  pattern={INPUT_PATTERNS.phone}
                   className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pine/20 focus:border-pine focus:bg-white transition-all text-sm font-medium text-slate-900 font-mono"
                 />
               </div>
@@ -89,6 +96,9 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
                   value={profile.email} 
                   onChange={onChange}
                   required
+                  inputMode="email"
+                  maxLength={INPUT_LIMITS.emailMax}
+                  pattern={INPUT_PATTERNS.email}
                   className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pine/20 focus:border-pine focus:bg-white transition-all text-sm font-medium text-slate-900"
                 />
               </div>

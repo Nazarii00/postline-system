@@ -6,15 +6,16 @@ import { TariffsCalculator } from '../../components/tariffs/TariffsCalculator';
 import { api } from '../../services/api';
 import type { BackendTariffRecord, TariffPlan } from '../../types/tariffs';
 
-const TYPE_CONFIG: Record<string, { title: string; icon: JSX.Element; description: string; popular?: boolean }> = {
+const TYPE_CONFIG: Record<string, { title: string; icon: JSX.Element; description: string }> = {
   letter: { title: 'Документи', icon: <FileText size={24} />, description: 'Швидка доставка паперів та листів' },
-  parcel: { title: 'Посилки', icon: <Package size={24} />, description: 'Ідеальний вибір для покупок та подарунків', popular: true },
+  parcel: { title: 'Посилки', icon: <Package size={24} />, description: 'Ідеальний вибір для покупок та подарунків' },
   package: { title: 'Вантажі', icon: <Truck size={24} />, description: 'Для габаритних та комерційних відправлень' },
 };
 
 const TariffsPage = () => {
   const [tariffs, setTariffs] = useState<BackendTariffRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTariffType, setSelectedTariffType] = useState('parcel');
 
   useEffect(() => {
     api.get<{ data: BackendTariffRecord[] }>('/tariffs')
@@ -30,6 +31,7 @@ const TariffsPage = () => {
       : null;
 
     return {
+      type,
       ...config,
       price: minPrice ? `від ${minPrice} грн` : 'Уточнюйте',
       features: typeTariffs.slice(0, 4).map(
@@ -49,13 +51,22 @@ const TariffsPage = () => {
           <div className="py-12 text-center text-slate-400 font-medium">Завантаження тарифів...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-            {plans.map((plan, index) => (
-              <TariffCard key={index} plan={plan} />
+            {plans.map((plan) => (
+              <TariffCard
+                key={plan.type}
+                plan={plan}
+                isSelected={plan.type === selectedTariffType}
+                onSelect={setSelectedTariffType}
+              />
             ))}
           </div>
         )}
 
-        <TariffsCalculator tariffs={tariffs} />
+        <TariffsCalculator
+          tariffs={tariffs}
+          selectedTariffType={selectedTariffType}
+          selectedTariffTitle={plans.find((plan) => plan.type === selectedTariffType)?.title}
+        />
       </section>
     </main>
   );

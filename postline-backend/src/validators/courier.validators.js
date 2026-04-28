@@ -1,38 +1,44 @@
 const { body } = require("express-validator");
+const {
+  LIMITS,
+  optionalEnumQuery,
+  optionalIdQuery,
+  optionalTextBody,
+  requiredEnumBody,
+  requiredIdBody,
+  requiredTextBody,
+} = require("./common.validators");
 
 const createCourierDeliveryValidation = [
-  body("shipmentId")
-    .notEmpty().withMessage("ID відправлення є обов'язковим")
-    .isInt().withMessage("ID відправлення має бути числом"),
-
-  body("courierId")
-    .notEmpty().withMessage("ID кур'єра є обов'язковим")
-    .isInt().withMessage("ID кур'єра має бути числом"),
-
-  body("toAddress")
-    .trim()
-    .notEmpty().withMessage("Адреса доставки є обов'язковою")
-    .isLength({ max: 200 }).withMessage("Адреса має містити максимум 200 символів"),
-
-  body("notes")
-    .optional().trim()
-    .isLength({ max: 500 }).withMessage("Примітки мають містити максимум 500 символів"),
+  requiredIdBody("shipmentId", "ID відправлення"),
+  requiredIdBody("courierId", "ID кур'єра"),
+  requiredTextBody("toAddress", "Адреса доставки", {
+    min: LIMITS.addressMin,
+    max: LIMITS.addressMax,
+  }),
+  optionalTextBody("notes", "Примітки", { max: LIMITS.noteMax }),
 ];
 
 const updateCourierDeliveryStatusValidation = [
-  body("status")
-    .notEmpty().withMessage("Статус є обов'язковим")
-    .isIn(["delivered", "failed"])
-    .withMessage("Статус має бути: delivered або failed"),
-
+  requiredEnumBody("status", "Статус", ["delivered", "failed"]),
   body("failureReason")
     .if(body("status").equals("failed"))
-    .notEmpty().withMessage("Причина невдачі є обов'язковою при статусі failed")
-    .isLength({ max: 500 }).withMessage("Максимум 500 символів"),
-
-  body("notes")
-    .optional().trim()
-    .isLength({ max: 500 }).withMessage("Примітки мають містити максимум 500 символів"),
+    .trim()
+    .notEmpty()
+    .withMessage("Причина невдачі є обов'язковою при статусі failed")
+    .isLength({ max: LIMITS.noteMax })
+    .withMessage(`Причина невдачі має містити не більше ${LIMITS.noteMax} символів`),
+  optionalTextBody("notes", "Примітки", { max: LIMITS.noteMax }),
 ];
 
-module.exports = { createCourierDeliveryValidation, updateCourierDeliveryStatusValidation };
+const listCourierDeliveriesValidation = [
+  optionalIdQuery("shipmentId", "ID відправлення"),
+  optionalIdQuery("courierId", "ID кур'єра"),
+  optionalEnumQuery("status", "Статус", ["assigned", "in_progress", "delivered", "failed"]),
+];
+
+module.exports = {
+  createCourierDeliveryValidation,
+  updateCourierDeliveryStatusValidation,
+  listCourierDeliveriesValidation,
+};

@@ -1,7 +1,7 @@
 import { Package, Scale, Shield } from 'lucide-react';
 import { type ShipmentFormData, type Tariff } from '../../types/shipment';
 import { ErrorMsg } from '../../components/ui/ErrorMsg';
-import { getFieldClass, preventInvalidNumberInput, labelClass } from '../../utils/formUtils';
+import { getFieldClass, INPUT_LIMITS, preventInvalidNumberInput, labelClass } from '../../utils/formUtils';
 
 const TYPE_OPTIONS = [
   { value: 'parcel',  label: 'Посилка' },
@@ -22,6 +22,11 @@ interface Props {
 
 export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxDim, isCourier, setIsCourier, tariff }: Props) => {
   const hasDimError = !!(errors.length || errors.width || errors.height);
+  const courierBaseFee = tariff?.courier_base_fee != null ? Number(tariff.courier_base_fee) : null;
+  const courierFeePerKg = tariff?.courier_fee_per_kg != null ? Number(tariff.courier_fee_per_kg) : null;
+  const courierHint = courierBaseFee !== null && courierFeePerKg !== null
+    ? `+${courierBaseFee.toFixed(2)} грн + ${courierFeePerKg.toFixed(2)} грн/кг`
+    : 'ставка не налаштована';
 
   return (
     <section>
@@ -34,7 +39,7 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div>
             <label className={labelClass}>Тип <span className="text-rose-500">*</span></label>
-            <select name="type" value={formData.type} onChange={onChange} className={getFieldClass('type', errors)}>
+            <select required name="type" value={formData.type} onChange={onChange} className={getFieldClass('type', errors)}>
               {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
@@ -53,7 +58,7 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
             <label className={labelClass}>
               <span className="flex items-center gap-1.5"><Scale size={14} className="text-pine" /> Вага (кг) <span className="text-rose-500">*</span></span>
             </label>
-            <input type="number" step="0.1" min="0.1" name="weight" value={formData.weight} onChange={onChange} onKeyDown={preventInvalidNumberInput} placeholder="0.0" className={getFieldClass('weight', errors)} />
+            <input required type="number" step="0.1" min={INPUT_LIMITS.weightMin} max={INPUT_LIMITS.weightMax} name="weight" value={formData.weight} onChange={onChange} onKeyDown={preventInvalidNumberInput} placeholder="0.0" className={getFieldClass('weight', errors)} />
             <ErrorMsg field="weight" errors={errors} />
           </div>
 
@@ -61,7 +66,7 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
             <label className={labelClass}>
               <span className="flex items-center gap-1.5"><Shield size={14} className="text-pine" /> Цінність (грн)</span>
             </label>
-            <input type="number" min="0" name="declaredValue" value={formData.declaredValue} onChange={onChange} onKeyDown={preventInvalidNumberInput} placeholder="0" className={getFieldClass('declaredValue', errors)} />
+            <input type="number" min="0" max={INPUT_LIMITS.moneyMax} step="0.01" name="declaredValue" value={formData.declaredValue} onChange={onChange} onKeyDown={preventInvalidNumberInput} placeholder="0" className={getFieldClass('declaredValue', errors)} />
           </div>
         </div>
 
@@ -74,7 +79,7 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
                   <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">
                     {['Довжина', 'Ширина', 'Висота'][i]}
                   </p>
-                  <input type="number" min="1" name={dim} value={formData[dim]} onChange={onChange} onKeyDown={preventInvalidNumberInput} placeholder="0"
+                  <input required type="number" min={INPUT_LIMITS.dimensionMin} max={INPUT_LIMITS.dimensionMax} name={dim} value={formData[dim]} onChange={onChange} onKeyDown={preventInvalidNumberInput} placeholder="0"
                     className={`w-full bg-transparent border-b ${errors[dim] ? 'border-rose-400 text-rose-600' : 'border-slate-300'} focus:border-pine outline-none text-base py-1 font-bold transition-colors`}
                   />
                   <ErrorMsg field={dim} errors={errors} />
@@ -88,7 +93,7 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
               <input type="checkbox" checked={isCourier} onChange={(e) => setIsCourier(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-pine focus:ring-pine cursor-pointer accent-pine flex-shrink-0" />
               <span className="text-sm font-bold text-slate-700 group-hover:text-pine transition-colors leading-tight">
                 Кур'єр до дверей<br />
-                <span className="text-xs text-slate-500 font-medium">+20 грн до тарифу</span>
+                <span className="text-xs text-slate-500 font-medium">{courierHint}</span>
               </span>
             </label>
           </div>
@@ -105,7 +110,9 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
               value={formData.receiverAddress}
               onChange={onChange}
               placeholder="вул. Шевченка 1, кв. 5"
-              maxLength={200}
+              required={isCourier}
+              minLength={INPUT_LIMITS.addressMin}
+              maxLength={INPUT_LIMITS.addressMax}
               className={getFieldClass('receiverAddress', errors)}
             />
             <ErrorMsg field="receiverAddress" errors={errors} />
@@ -114,7 +121,7 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
 
         <div>
           <label className={labelClass}>Опис (необов'язково)</label>
-          <textarea name="description" value={formData.description} onChange={onChange} placeholder="Короткий опис вмісту..." rows={2}
+          <textarea name="description" value={formData.description} onChange={onChange} placeholder="Короткий опис вмісту..." rows={2} maxLength={INPUT_LIMITS.noteMax}
             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pine/20 focus:border-pine focus:bg-white transition-all text-sm font-medium resize-none"
           />
         </div>
@@ -123,6 +130,9 @@ export const ParcelSection = ({ formData, onChange, errors, calculatedSize, maxD
         {tariff && (
           <p className="text-xs text-slate-400">
             Тариф: {tariff.city_from} → {tariff.city_to} · База: {tariff.base_price} грн + {tariff.price_per_kg} грн/кг
+            {tariff.courier_base_fee != null && tariff.courier_fee_per_kg != null
+              ? ` · Кур'єр: ${tariff.courier_base_fee} грн + ${tariff.courier_fee_per_kg} грн/кг`
+              : ''}
           </p>
         )}
       </div>

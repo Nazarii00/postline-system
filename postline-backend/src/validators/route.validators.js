@@ -1,42 +1,33 @@
 const { body } = require("express-validator");
+const {
+  LIMITS,
+  optionalFloatBody,
+  requiredIdBody,
+} = require("./common.validators");
 
 const createRouteValidation = [
-  body("startDeptId")
-    .notEmpty().withMessage("Стартове відділення є обов'язковим")
-    .isInt().withMessage("ID відділення має бути числом"),
-
-  body("endDeptId")
-    .notEmpty().withMessage("Кінцеве відділення є обов'язковим")
-    .isInt().withMessage("ID відділення має бути числом"),
-
-  body("distanceKm")
-    .optional()
-    .isFloat({ min: 0 }).withMessage("Відстань має бути числом більшим за 0"),
-
-  body("estTimeHours")
-    .optional()
-    .isFloat({ min: 0 }).withMessage("Час має бути числом більшим за 0"),
-
+  requiredIdBody("startDeptId", "Стартове відділення"),
+  requiredIdBody("endDeptId", "Кінцеве відділення"),
+  optionalFloatBody("distanceKm", "Відстань", { min: 0, max: LIMITS.distanceKmMax }),
+  optionalFloatBody("estTimeHours", "Час", { min: 0, max: LIMITS.durationHoursMax }),
   body("stops")
-    .optional()
-    .isArray().withMessage("Зупинки мають бути масивом"),
-
+    .optional({ nullable: true })
+    .isArray({ max: LIMITS.routeStopsMax })
+    .withMessage(`Зупинки мають бути масивом до ${LIMITS.routeStopsMax} елементів`),
   body("stops.*.departmentId")
-    .isInt().withMessage("ID відділення зупинки має бути числом"),
-
+    .isInt({ min: 1 })
+    .withMessage("ID відділення зупинки має бути додатним цілим числом")
+    .toInt(),
   body("stops.*.distanceFromPrev")
-    .optional()
-    .isFloat({ min: 0 }).withMessage("Відстань має бути числом більшим за 0"),
+    .optional({ nullable: true })
+    .isFloat({ min: 0, max: LIMITS.distanceKmMax })
+    .withMessage(`Відстань має бути числом від 0 до ${LIMITS.distanceKmMax}`)
+    .toFloat(),
 ];
 
 const updateRouteValidation = [
-  body("distanceKm")
-    .optional()
-    .isFloat({ min: 0 }).withMessage("Відстань має бути числом більшим за 0"),
-
-  body("estTimeHours")
-    .optional()
-    .isFloat({ min: 0 }).withMessage("Час має бути числом більшим за 0"),
+  optionalFloatBody("distanceKm", "Відстань", { min: 0, max: LIMITS.distanceKmMax }),
+  optionalFloatBody("estTimeHours", "Час", { min: 0, max: LIMITS.durationHoursMax }),
 ];
 
 module.exports = { createRouteValidation, updateRouteValidation };

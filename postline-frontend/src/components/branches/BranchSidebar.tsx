@@ -1,6 +1,7 @@
 import { Search, MapPin } from 'lucide-react';
 import { type Branch } from '../../types/branches';
 import { BranchCard } from './BranchCard';
+import { INPUT_LIMITS, sanitizePlainText } from '../../utils/formUtils';
 
 interface Props {
   searchQuery: string;
@@ -21,7 +22,7 @@ export const BranchSidebar = ({
   isLoading,
   error,
 }: Props) => (
-  <div className="w-full lg:w-[420px] shrink-0 flex flex-col bg-white/80 backdrop-blur rounded-3xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all overflow-hidden">
+  <div className="w-full lg:w-[420px] shrink-0 lg:self-start flex flex-col min-h-0 max-h-[calc(100vh-220px)] bg-white/80 backdrop-blur rounded-3xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all overflow-hidden">
     <div className="p-6 border-b border-slate-100 bg-white/50">
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -30,12 +31,13 @@ export const BranchSidebar = ({
           placeholder="Введіть місто, адресу, назву або номер..."
           className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine focus:ring-2 focus:ring-pine/20 transition-all text-base font-medium"
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => onSearchChange(sanitizePlainText(e.target.value, INPUT_LIMITS.addressMax))}
+          maxLength={INPUT_LIMITS.addressMax}
         />
       </div>
     </div>
 
-    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50/30">
+    <div className="flex-1 min-h-0 max-h-[720px] overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50/30">
       {isLoading ? (
         <div className="py-20 text-center text-slate-400 font-semibold">Завантаження відділень...</div>
       ) : error ? (

@@ -1,5 +1,6 @@
 const db = require('../db');
 const crypto = require('crypto');
+const { createShipmentStatusNotifications } = require("./notifications.repository");
 
 const generateTrackingNumber = () =>
   'PL' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(2).toString('hex').toUpperCase();
@@ -14,6 +15,55 @@ const nullableDate = (value) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+};
+
+const createError = (status, message) => {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+};
+
+const formatDepartmentAddress = (city, address) =>
+  [city, address].filter(Boolean).join(", ");
+
+const ensureProcessingEvent = async (client, {
+  shipmentId,
+  departmentId,
+  operatorId,
+  status,
+  notes = null,
+}) => {
+  const { rows: [existingEvent] } = await client.query(
+    `SELECT id
+     FROM processing_events
+     WHERE shipment_id = $1 AND status_set = $2
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+    [shipmentId, status]
+  );
+
+  if (existingEvent) {
+    if (notes) {
+      await client.query(
+        `UPDATE processing_events
+         SET notes = $1
+         WHERE id = $2`,
+        [notes, existingEvent.id]
+      );
+    }
+
+    return existingEvent;
+  }
+
+  const { rows: [createdEvent] } = await client.query(
+    `INSERT INTO processing_events
+       (shipment_id, department_id, operator_id, status_set, notes)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
+    [shipmentId, departmentId || null, operatorId || null, status, notes || null]
+  );
+
+  return createdEvent;
 };
 
 const SORT_COLUMNS = {
@@ -75,20 +125,44 @@ const createShipment = ({
   shipmentType, sizeCategory,
   weightKg, lengthCm, widthCm, heightCm,
   declaredValue, description,
-  senderAddress, receiverAddress, 
+  senderAddress, receiverAddress,
+  operatorId,
   isCourier,
 }) =>
   db.tx(async (client) => {
+    if (operatorId) {
+      await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(operatorId)]);
+    }
+
     // Беремо тариф для розрахунку вартості
     const { rows: [tariff] } = await client.query(
       'SELECT * FROM tariffs WHERE id = $1', [tariffId]
     );
     if (!tariff) throw new Error('Тариф не знайдено');
 
+    const { rows: [departments] } = await client.query(
+      `SELECT origin.city AS origin_city,
+              origin.address AS origin_address,
+              dest.city AS dest_city,
+              dest.address AS dest_address
+       FROM departments origin
+       JOIN departments dest ON dest.id = $2
+       WHERE origin.id = $1`,
+      [originDeptId, destDeptId]
+    );
+    if (!departments) throw createError(400, "Відділення відправки або призначення не знайдено");
+
     const declaredValueNum = Number(declaredValue || 0);
-    const courierPrice = isCourier ? 20 : 0;
+    const weightKgNum = Number(weightKg);
+    if (isCourier && (tariff.courier_base_fee == null || tariff.courier_fee_per_kg == null)) {
+      throw createError(400, "Для цього тарифу не налаштовано вартість кур'єрської доставки");
+    }
+
+    const courierBaseFee = Number(tariff.courier_base_fee || 0);
+    const courierFeePerKg = Number(tariff.courier_fee_per_kg || 0);
+    const courierPrice = isCourier ? courierBaseFee + courierFeePerKg * weightKgNum : 0;
     const insurance = declaredValueNum > 500 ? Math.round(declaredValueNum * 0.005) : 0;
-    const totalCost = parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * weightKg + courierPrice + insurance;
+    const totalCost = parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * weightKgNum + courierPrice + insurance;
     const trackingNumber = generateTrackingNumber();
 
     const { rows: [shipment] } = await client.query(
@@ -108,8 +182,18 @@ const createShipment = ({
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [shipment.id, shipmentType, sizeCategory, weightKg,
        lengthCm, widthCm, heightCm, declaredValue || null, description || null,
-       senderAddress, receiverAddress, isCourier]
+       senderAddress || formatDepartmentAddress(departments.origin_city, departments.origin_address),
+       receiverAddress || formatDepartmentAddress(departments.dest_city, departments.dest_address),
+       isCourier]
     );
+
+    await ensureProcessingEvent(client, {
+      shipmentId: shipment.id,
+      departmentId: originDeptId,
+      operatorId,
+      status: "accepted",
+    });
+    await createShipmentStatusNotifications(client, shipment, "accepted");
 
     return shipment;
   });
@@ -214,7 +298,8 @@ const getShipmentsByDepartment = (departmentId, filters = {}) => {
   } = normalizeShipmentFilters(filters);
 
   return db.many(
-    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.current_dept_id,
+    `SELECT s.id, s.tracking_number, s.status, s.total_cost, s.created_at,
+            s.origin_dept_id, s.dest_dept_id, s.current_dept_id,
             sd.shipment_type, sd.weight_kg, sd.receiver_address,
             sender.full_name   AS sender_name,
             receiver.full_name AS receiver_name,
@@ -227,7 +312,10 @@ const getShipmentsByDepartment = (departmentId, filters = {}) => {
      JOIN users receiver      ON receiver.id = s.receiver_id
      JOIN departments origin   ON origin.id = s.origin_dept_id
      JOIN departments dest     ON dest.id = s.dest_dept_id
-     WHERE s.current_dept_id = $1
+     WHERE (
+         s.current_dept_id = $1
+         OR (s.dest_dept_id = $1 AND s.status = 'in_transit')
+       )
        AND ($2::shipment_status IS NULL OR s.status = $2::shipment_status)
        AND ($3::varchar IS NULL OR s.tracking_number ILIKE '%' || $3 || '%')
        AND (
@@ -339,7 +427,9 @@ const getAllShipments = (filters = {}) => {
 // app.current_user_id потрібен для тригера fn_log_status_change
 const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =>
   db.tx(async (client) => {
-    await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(operatorId)]);
+    if (operatorId) {
+      await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(operatorId)]);
+    }
 
     const { rows: [updated] } = await client.query(
       `UPDATE shipments
@@ -349,30 +439,43 @@ const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =
       [id, status, departmentId]
     );
 
-    // notes в processing_events якщо є
-    if (notes) {
-      await client.query(
-        `UPDATE processing_events
-         SET notes = $1
-         WHERE ctid IN (
-           SELECT ctid
-           FROM processing_events
-           WHERE shipment_id = $2 AND status_set = $3
-           ORDER BY created_at DESC
-           LIMIT 1
-         )`,
-        [notes, id, status]
-      );
+    if (updated) {
+      await ensureProcessingEvent(client, {
+        shipmentId: updated.id,
+        departmentId,
+        operatorId,
+        status,
+        notes,
+      });
+      await createShipmentStatusNotifications(client, updated, status);
     }
 
     return updated;
   });
 
-const cancelShipment = (id) =>
-  db.one(
-    `UPDATE shipments SET status = 'cancelled' WHERE id = $1 RETURNING *`,
-    [id]
-  );
+const cancelShipment = (id, { operatorId, departmentId } = {}) =>
+  db.tx(async (client) => {
+    if (operatorId) {
+      await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(operatorId)]);
+    }
+
+    const { rows: [updated] } = await client.query(
+      `UPDATE shipments SET status = 'cancelled' WHERE id = $1 RETURNING *`,
+      [id]
+    );
+
+    if (updated) {
+      await ensureProcessingEvent(client, {
+        shipmentId: updated.id,
+        departmentId: departmentId || updated.current_dept_id,
+        operatorId,
+        status: "cancelled",
+      });
+      await createShipmentStatusNotifications(client, updated, "cancelled");
+    }
+
+    return updated || null;
+  });
 
 // Хронологія змін статусів
 const getShipmentHistory = (shipmentId) =>

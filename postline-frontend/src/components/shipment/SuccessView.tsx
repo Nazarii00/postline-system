@@ -1,4 +1,4 @@
-import { CheckCircle, Printer, RefreshCcw } from 'lucide-react';
+import { CheckCircle, RefreshCcw } from 'lucide-react';
 
 interface Props {
   tracking: string;
@@ -18,9 +18,6 @@ export const SuccessView = ({ tracking, onReset }: Props) => (
         <p className="text-4xl font-black text-pine tracking-tight">{tracking}</p>
       </div>
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-        <button className="flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-2xl transition-all text-sm">
-          <Printer size={18} /> Друк ТТН
-        </button>
         <button onClick={onReset} className="flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 bg-pine hover:bg-pine/90 text-white font-bold rounded-2xl shadow-sm transition-all text-sm">
           <RefreshCcw size={18} /> Нова реєстрація
         </button>

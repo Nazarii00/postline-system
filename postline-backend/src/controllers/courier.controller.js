@@ -6,6 +6,7 @@ const {
 } = require("../repositories/courier.repository");
 const { getShipmentById } = require("../repositories/shipments.repository");
 const { findUserById } = require("../repositories/users.repository");
+const { getDepartmentById } = require("../repositories/departments.repository");
 
 const allowedCourierStatusTransitions = {
   assigned: ["delivered", "failed"],
@@ -19,9 +20,19 @@ const getOperatorDepartmentId = async (operatorId) => {
   return operator?.department_id ? Number(operator.department_id) : null;
 };
 
+const getUserDepartmentId = async (userId) => {
+  const user = await findUserById(userId);
+  return user?.department_id ? Number(user.department_id) : null;
+};
+
 const isDeliveryInOperatorDepartment = (delivery, departmentId) =>
   Number(delivery.current_dept_id) === Number(departmentId)
   && Number(delivery.dest_dept_id) === Number(departmentId);
+
+const isDeliveryInCourierCity = (delivery) =>
+  Boolean(delivery.courier_city)
+  && Boolean(delivery.dest_city)
+  && delivery.courier_city === delivery.dest_city;
 
 const createCourierDeliveryHandler = async (req, res, next) => {
   try {
@@ -61,6 +72,13 @@ const createCourierDeliveryHandler = async (req, res, next) => {
       return res.status(400).json({ message: "Обраного кур'єра не знайдено" });
     }
 
+    const courierDepartment = courier.department_id
+      ? await getDepartmentById(courier.department_id)
+      : null;
+    if (!courierDepartment || courierDepartment.city !== shipment.dest_city) {
+      return res.status(403).json({ message: "Кур'єр може доставляти тільки посилки свого міста" });
+    }
+
     const delivery = await createCourierDelivery({
       shipmentId,
       courierId,
@@ -91,7 +109,13 @@ const getCourierDeliveryHandler = async (req, res, next) => {
         return res.status(403).json({ message: "Кур'єрська доставка не належить відділенню оператора" });
       }
     }
-    if (req.user.role === "courier" && Number(delivery.courier_id) !== Number(req.user.sub)) {
+    if (
+      req.user.role === "courier"
+      && (
+        Number(delivery.courier_id) !== Number(req.user.sub)
+        || !isDeliveryInCourierCity(delivery)
+      )
+    ) {
       return res.status(403).json({ message: "Немає прав для перегляду цієї доставки" });
     }
     return res.status(200).json({ data: delivery });
@@ -104,6 +128,9 @@ const listCourierDeliveriesHandler = async (req, res, next) => {
   try {
     const { shipmentId, courierId, status } = req.query;
     const effectiveCourierId = req.user.role === "courier" ? req.user.sub : courierId;
+    const courierDepartmentId = req.user.role === "courier"
+      ? await getUserDepartmentId(req.user.sub)
+      : null;
     const departmentId = req.user.role === "operator"
       ? await getOperatorDepartmentId(req.user.sub)
       : null;
@@ -112,11 +139,16 @@ const listCourierDeliveriesHandler = async (req, res, next) => {
       return res.status(400).json({ message: "Оператору не призначено відділення" });
     }
 
+    if (req.user.role === "courier" && !courierDepartmentId) {
+      return res.status(400).json({ message: "Кур'єру не призначено відділення" });
+    }
+
     const deliveries = await listCourierDeliveries({
       shipmentId: shipmentId ? Number(shipmentId) : null,
       courierId: effectiveCourierId ? Number(effectiveCourierId) : null,
       status: status || null,
       departmentId,
+      courierDepartmentId,
     });
 
     return res.status(200).json({ data: deliveries });
@@ -142,7 +174,13 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
       }
     }
 
-    if (req.user.role === "courier" && Number(delivery.courier_id) !== Number(req.user.sub)) {
+    if (
+      req.user.role === "courier"
+      && (
+        Number(delivery.courier_id) !== Number(req.user.sub)
+        || !isDeliveryInCourierCity(delivery)
+      )
+    ) {
       return res.status(403).json({ message: "Немає прав для оновлення цієї доставки" });
     }
 
@@ -164,7 +202,12 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
       });
     }
 
-    const updated = await updateCourierDeliveryStatus(id, { status, failureReason, notes });
+    const updated = await updateCourierDeliveryStatus(id, {
+      status,
+      failureReason,
+      notes,
+      actorId: req.user.sub,
+    });
     if (!updated) {
       return res.status(404).json({ message: "Кур'єрська доставка не знайдена" });
     }

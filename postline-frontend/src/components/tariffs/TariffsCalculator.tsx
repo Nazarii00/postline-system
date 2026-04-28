@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import { Calculator, MapPin, Scale } from 'lucide-react';
 import type { BackendTariffRecord } from '../../types/tariffs';
+import { INPUT_LIMITS, preventInvalidNumberInput } from '../../utils/formUtils';
 
 interface Props {
   tariffs: BackendTariffRecord[];
+  selectedTariffType: string;
+  selectedTariffTitle?: string;
 }
 
-export const TariffsCalculator = ({ tariffs }: Props) => {
+export const TariffsCalculator = ({ tariffs, selectedTariffType, selectedTariffTitle }: Props) => {
   const [cityFrom, setCityFrom] = useState('');
   const [cityTo, setCityTo] = useState('');
   const [weight, setWeight] = useState('');
-  const [result, setResult] = useState<{ min: number; max: number } | null>(null);
-  const [error, setError] = useState('');
+  const [result, setResult] = useState<{ min: number; max: number; tariffType: string; tariffTitle?: string } | null>(null);
+  const [error, setError] = useState<{ message: string; tariffType: string } | null>(null);
 
   const cities = [...new Set([
     ...tariffs.map((tariff) => tariff.city_from),
@@ -19,37 +22,59 @@ export const TariffsCalculator = ({ tariffs }: Props) => {
   ])].sort();
 
   const handleCalculate = () => {
-    setError('');
+    setError(null);
     setResult(null);
 
+    const numericWeight = Number(weight);
     if (!cityFrom || !cityTo || !weight) {
-      setError('Заповніть всі поля');
+      setError({ message: 'Заповніть всі поля', tariffType: selectedTariffType });
+      return;
+    }
+    if (numericWeight < INPUT_LIMITS.weightMin || numericWeight > INPUT_LIMITS.weightMax) {
+      setError({ message: `Вага має бути від ${INPUT_LIMITS.weightMin} до ${INPUT_LIMITS.weightMax} кг`, tariffType: selectedTariffType });
       return;
     }
 
     const matched = tariffs.filter(
       (tariff) =>
         tariff.city_from.toLowerCase() === cityFrom.toLowerCase() &&
-        tariff.city_to.toLowerCase() === cityTo.toLowerCase()
+        tariff.city_to.toLowerCase() === cityTo.toLowerCase() &&
+        tariff.shipment_type === selectedTariffType
     );
 
     if (matched.length === 0) {
-      setError('Тариф для цього маршруту не знайдено');
+      setError({
+        message: 'Тариф для цього маршруту та типу відправлення не знайдено',
+        tariffType: selectedTariffType,
+      });
       return;
     }
 
     const prices = matched.map(
-      (tariff) => parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * Number(weight)
+      (tariff) => parseFloat(tariff.base_price) + parseFloat(tariff.price_per_kg) * numericWeight
     );
 
-    setResult({ min: Math.min(...prices), max: Math.max(...prices) });
+    setResult({
+      min: Math.min(...prices),
+      max: Math.max(...prices),
+      tariffType: selectedTariffType,
+      tariffTitle: selectedTariffTitle,
+    });
   };
+
+  const visibleError = error?.tariffType === selectedTariffType ? error.message : '';
+  const visibleResult = result?.tariffType === selectedTariffType ? result : null;
 
   return (
     <div id="calculator" className="w-full bg-white/80 backdrop-blur p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all flex flex-col pt-8 scroll-mt-24">
       <div className="flex items-center gap-3 mb-8 border-b border-slate-100 pb-5">
         <div className="p-3 bg-pine/10 text-pine rounded-xl"><Calculator size={22} /></div>
-        <h3 className="text-xl font-bold text-slate-900">Швидкий розрахунок</h3>
+        <div>
+          <h3 className="text-xl font-bold text-slate-900">Швидкий розрахунок</h3>
+          <p className="text-sm text-slate-500 mt-1">
+            Обраний тариф: <span className="font-bold text-pine">{selectedTariffTitle ?? 'не вибрано'}</span>
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-end">
@@ -58,6 +83,7 @@ export const TariffsCalculator = ({ tariffs }: Props) => {
             <MapPin size={14} /> Звідки
           </label>
           <select
+            required
             value={cityFrom}
             onChange={(e) => setCityFrom(e.target.value)}
             className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:border-pine outline-none transition-all font-medium text-slate-800"
@@ -72,6 +98,7 @@ export const TariffsCalculator = ({ tariffs }: Props) => {
             <MapPin size={14} /> Куди
           </label>
           <select
+            required
             value={cityTo}
             onChange={(e) => setCityTo(e.target.value)}
             className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:border-pine outline-none transition-all font-medium text-slate-800"
@@ -89,10 +116,13 @@ export const TariffsCalculator = ({ tariffs }: Props) => {
           </label>
           <input
             type="number"
-            min="0.1"
+            required
+            min={INPUT_LIMITS.weightMin}
+            max={INPUT_LIMITS.weightMax}
             step="0.1"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
+            onKeyDown={preventInvalidNumberInput}
             placeholder="0.0"
             className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:border-pine outline-none transition-all font-medium text-slate-800"
           />
@@ -109,19 +139,21 @@ export const TariffsCalculator = ({ tariffs }: Props) => {
         </div>
       </div>
 
-      {error && <p className="mt-4 text-sm text-rose-500 font-medium">{error}</p>}
+      {visibleError && <p className="mt-4 text-sm text-rose-500 font-medium">{visibleError}</p>}
 
-      {result && (
+      {visibleResult && (
         <div className="mt-6 p-4 bg-pine/5 border border-pine/20 rounded-2xl">
-          <p className="text-sm text-slate-500 font-medium mb-1">Орієнтовна вартість доставки:</p>
-          {result.min === result.max ? (
-            <p className="text-2xl font-black text-pine">{result.min.toFixed(2)} грн</p>
+          <p className="text-sm text-slate-500 font-medium mb-1">
+            Орієнтовна вартість доставки за тарифом {visibleResult.tariffTitle ?? 'обраним тарифом'}:
+          </p>
+          {visibleResult.min === visibleResult.max ? (
+            <p className="text-2xl font-black text-pine">{visibleResult.min.toFixed(2)} грн</p>
           ) : (
             <p className="text-2xl font-black text-pine">
-              {result.min.toFixed(2)} — {result.max.toFixed(2)} грн
+              {visibleResult.min.toFixed(2)} — {visibleResult.max.toFixed(2)} грн
             </p>
           )}
-          <p className="text-xs text-slate-400 mt-1">Залежно від типу та розміру відправлення</p>
+          <p className="text-xs text-slate-400 mt-1">Залежно від розміру відправлення в межах вибраного тарифу</p>
         </div>
       )}
     </div>

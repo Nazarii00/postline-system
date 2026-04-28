@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,6 +10,11 @@ import {
   X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { api } from '../../services/api';
+
+type NotificationApiItem = {
+  read_at: string | null;
+};
 
 const ClientLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -17,6 +22,10 @@ const ClientLayout = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const isClient = user?.role === 'client';
+  const userId = user?.id;
+  const visibleUnreadNotifications = isClient ? unreadNotifications : 0;
 
   const navigation = [
     { name: 'Мої відправлення', path: '/client', icon: <Package size={20} /> },
@@ -38,6 +47,35 @@ const ClientLayout = () => {
     navigate('/auth', { replace: true });
   };
 
+  const fetchUnreadNotifications = useCallback(async () => {
+    if (!isClient) return;
+
+    try {
+      const res = await api.get<{ data: NotificationApiItem[] }>('/notifications');
+      setUnreadNotifications((res.data || []).filter((notification) => !notification.read_at).length);
+    } catch {
+      setUnreadNotifications(0);
+    }
+  }, [isClient]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(fetchUnreadNotifications, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchUnreadNotifications, location.pathname, userId]);
+
+  useEffect(() => {
+    window.addEventListener('focus', fetchUnreadNotifications);
+    window.addEventListener('postline:notifications-updated', fetchUnreadNotifications);
+    const intervalId = window.setInterval(fetchUnreadNotifications, 60000);
+
+    return () => {
+      window.removeEventListener('focus', fetchUnreadNotifications);
+      window.removeEventListener('postline:notifications-updated', fetchUnreadNotifications);
+      window.clearInterval(intervalId);
+    };
+  }, [fetchUnreadNotifications]);
+
   return (
     <div className="h-screen bg-slate-100 flex font-sans text-slate-900 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-br from-pine/5 via-transparent to-transparent pointer-events-none z-0" />
@@ -58,6 +96,7 @@ const ClientLayout = () => {
           </p>
           {navigation.map((item) => {
             const isActive = location.pathname === item.path;
+            const isNotificationsLink = item.path === '/client/notifications';
             return (
               <Link
                 key={item.name}
@@ -69,7 +108,12 @@ const ClientLayout = () => {
                 <span className={`${isActive ? 'scale-110' : 'group-hover:scale-110'} transition-transform`}>
                   {item.icon}
                 </span>
-                {item.name}
+                <span className="flex-1">{item.name}</span>
+                {isNotificationsLink && visibleUnreadNotifications > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-pine text-white text-[10px] font-black flex items-center justify-center">
+                    {visibleUnreadNotifications > 99 ? '99+' : visibleUnreadNotifications}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -139,6 +183,7 @@ const ClientLayout = () => {
             <nav className="space-y-1 flex-1 overflow-y-auto">
               {navigation.map((item) => {
                 const isActive = location.pathname === item.path;
+                const isNotificationsLink = item.path === '/client/notifications';
                 return (
                   <Link
                     key={item.name}
@@ -148,7 +193,13 @@ const ClientLayout = () => {
                       isActive ? 'bg-pine/10 text-pine' : 'text-slate-600 hover:bg-slate-50 hover:text-pine'
                     }`}
                   >
-                    {item.icon} {item.name}
+                    {item.icon}
+                    <span className="flex-1">{item.name}</span>
+                    {isNotificationsLink && visibleUnreadNotifications > 0 && (
+                      <span className="min-w-5 h-5 px-1.5 rounded-full bg-pine text-white text-[10px] font-black flex items-center justify-center">
+                        {visibleUnreadNotifications > 99 ? '99+' : visibleUnreadNotifications}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

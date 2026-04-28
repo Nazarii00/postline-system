@@ -46,9 +46,14 @@ const fetchCourierDeliveries = (deliveryIds) =>
             cd.status,
             s.tracking_number,
             s.current_dept_id,
-            s.dest_dept_id
+            s.dest_dept_id,
+            dest_dept.city AS dest_city,
+            courier_dept.city AS courier_city
      FROM courier_deliveries cd
      JOIN shipments s ON s.id = cd.shipment_id
+     JOIN departments dest_dept ON dest_dept.id = s.dest_dept_id
+     JOIN users courier ON courier.id = cd.courier_id
+     LEFT JOIN departments courier_dept ON courier_dept.id = courier.department_id
      WHERE cd.id = ANY($1::int[])`,
     [deliveryIds]
   );
@@ -81,6 +86,10 @@ const optimizeCourierDeliveriesRouteHandler = async (req, res, next) => {
 
     if (deliveries.some((delivery) => Number(delivery.courier_id) !== courierId)) {
       throw createError(400, "Усі доставки мають належати вибраному кур'єру");
+    }
+
+    if (deliveries.some((delivery) => !delivery.courier_city || delivery.courier_city !== delivery.dest_city)) {
+      throw createError(403, "Кур'єр може формувати маршрут тільки для посилок свого міста");
     }
 
     if (req.user.role === "operator") {

@@ -35,7 +35,13 @@ const updateDepartment = (id, { city, address, type, phone, openingTime, closing
   );
 
 const deleteDepartment = (id) =>
-  db.run('UPDATE departments SET deleted_at = NOW() WHERE id = $1', [id]);
+  db.one(
+    `UPDATE departments
+     SET deleted_at = COALESCE(deleted_at, NOW())
+     WHERE id = $1
+     RETURNING *`,
+    [id]
+  );
 
 module.exports = {
   createDepartment,

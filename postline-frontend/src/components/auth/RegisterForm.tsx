@@ -4,19 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import type { User } from "../../types/user";
-
-const sanitizeName = (value: string) => value.replace(/[^A-Za-zА-Яа-яІіЇїЄє' -]/g, "").slice(0, 40);
-const sanitizeEmail = (value: string) => {
-  const cleaned = value.toLowerCase().replace(/[^a-z0-9@._+-]/g, "");
-  const [localPart = "", ...domainParts] = cleaned.split("@");
-  const domainPart = domainParts.join("");
-  return domainParts.length ? `${localPart}@${domainPart}` : localPart;
-};
-const sanitizePhone = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  const localDigits = digits.startsWith("380") ? digits.slice(3, 12) : digits.slice(0, 9);
-  return `+380${localDigits}`;
-};
+import {
+  INPUT_LIMITS,
+  INPUT_PATTERNS,
+  sanitizeEmail,
+  sanitizeName,
+  sanitizeUaPhone,
+} from "../../utils/formUtils";
 
 const RegisterForm = () => {
   const navigate = useNavigate();
@@ -31,9 +25,9 @@ const RegisterForm = () => {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-  const phonePattern = /^\+380\d{9}$/;
-  const passwordPolicyPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>_\-[\]/+=~`\\]).{8,64}$/;
+  const emailPattern = new RegExp(INPUT_PATTERNS.email);
+  const phonePattern = new RegExp(INPUT_PATTERNS.phone);
+  const passwordPolicyPattern = new RegExp(INPUT_PATTERNS.password);
 
   const isEmailValid = emailPattern.test(email);
   const isPhoneValid = phonePattern.test(phone);
@@ -87,10 +81,12 @@ const RegisterForm = () => {
               type="text"
               placeholder="Назарій"
               autoComplete="given-name"
-              minLength={2}
-              maxLength={40}
+              required
+              minLength={INPUT_LIMITS.nameMin}
+              maxLength={INPUT_LIMITS.shortNameMax}
+              pattern={INPUT_PATTERNS.personName}
               value={firstName}
-              onChange={(e) => setFirstName(sanitizeName(e.target.value))}
+              onChange={(e) => setFirstName(sanitizeName(e.target.value, INPUT_LIMITS.shortNameMax))}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all"
             />
             <p className={`mt-1.5 ml-1 text-xs ${firstName.length > 0 && firstName.length < 2 ? "text-rose-500" : "text-slate-400"}`}>
@@ -103,10 +99,12 @@ const RegisterForm = () => {
               type="text"
               placeholder="Боднар"
               autoComplete="family-name"
-              minLength={2}
-              maxLength={40}
+              required
+              minLength={INPUT_LIMITS.nameMin}
+              maxLength={INPUT_LIMITS.shortNameMax}
+              pattern={INPUT_PATTERNS.personName}
               value={lastName}
-              onChange={(e) => setLastName(sanitizeName(e.target.value))}
+              onChange={(e) => setLastName(sanitizeName(e.target.value, INPUT_LIMITS.shortNameMax))}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all"
             />
             <p className={`mt-1.5 ml-1 text-xs ${lastName.length > 0 && lastName.length < 2 ? "text-rose-500" : "text-slate-400"}`}>
@@ -123,10 +121,11 @@ const RegisterForm = () => {
               placeholder="+380XXXXXXXXX"
               inputMode="numeric"
               autoComplete="tel"
-              pattern="^\+380\d{9}$"
+              required
+              pattern={INPUT_PATTERNS.phone}
               maxLength={13}
               value={phone}
-              onChange={(e) => setPhone(sanitizePhone(e.target.value))}
+              onChange={(e) => setPhone(sanitizeUaPhone(e.target.value))}
               onFocus={() => {
                 if (!phone) setPhone("+380");
               }}
@@ -143,8 +142,9 @@ const RegisterForm = () => {
               placeholder="email@..."
               inputMode="email"
               autoComplete="email"
-              maxLength={100}
-              pattern="^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+              required
+              maxLength={INPUT_LIMITS.emailMax}
+              pattern={INPUT_PATTERNS.email}
               value={email}
               onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all"
@@ -163,8 +163,10 @@ const RegisterForm = () => {
                 type={isPasswordVisible ? "text" : "password"}
                 placeholder="••••••••"
                 autoComplete="new-password"
-                minLength={8}
-                maxLength={64}
+                required
+                minLength={INPUT_LIMITS.passwordMin}
+                maxLength={INPUT_LIMITS.passwordMax}
+                pattern={INPUT_PATTERNS.password}
                 value={password}
                 onChange={(e) => setPassword(e.target.value.replace(/\s/g, ""))}
                 className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all"
@@ -189,8 +191,10 @@ const RegisterForm = () => {
                 type={isConfirmPasswordVisible ? "text" : "password"}
                 placeholder="••••••••"
                 autoComplete="new-password"
-                minLength={8}
-                maxLength={64}
+                required
+                minLength={INPUT_LIMITS.passwordMin}
+                maxLength={INPUT_LIMITS.passwordMax}
+                pattern={INPUT_PATTERNS.password}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value.replace(/\s/g, ""))}
                 className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all"

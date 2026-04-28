@@ -14,10 +14,74 @@ const {
 
 const { findOrCreateUserByPhone, findUserById } = require("../repositories/users.repository");
 const { getRouteByDepartments } = require("../repositories/routes.repository");
+const { listCourierDeliveries } = require("../repositories/courier.repository");
 
 const getOperatorDepartmentId = async (operatorId) => {
   const operator = await findUserById(operatorId);
   return operator?.department_id ? Number(operator.department_id) : null;
+};
+
+const allowedStatusTransitions = {
+  accepted: ["sorting", "cancelled"],
+  sorting: ["in_transit", "returned"],
+  in_transit: ["arrived", "returned"],
+  arrived: ["ready_for_pickup", "returned"],
+  ready_for_pickup: ["delivered", "returned"],
+  delivered: [],
+  returned: [],
+  cancelled: [],
+};
+
+const destinationStatuses = new Set(["arrived", "ready_for_pickup", "delivered"]);
+
+const canTransitionStatus = (currentStatus, nextStatus) =>
+  (allowedStatusTransitions[currentStatus] || []).includes(nextStatus);
+
+const getDepartmentForStatus = (shipment, nextStatus) => {
+  if (destinationStatuses.has(nextStatus)) {
+    return Number(shipment.dest_dept_id);
+  }
+
+  return Number(shipment.current_dept_id || shipment.origin_dept_id);
+};
+
+const canDepartmentAccessShipment = (departmentId, shipment) =>
+  Number(shipment.current_dept_id) === Number(departmentId)
+  || (
+    shipment.status === "in_transit"
+    && Number(shipment.dest_dept_id) === Number(departmentId)
+  );
+
+const canAccessShipment = async (user, shipment) => {
+  if (!user || !shipment) return false;
+
+  if (user.role === "admin") return true;
+
+  if (user.role === "client") {
+    return Number(shipment.sender_id) === Number(user.sub)
+      || Number(shipment.receiver_id) === Number(user.sub);
+  }
+
+  if (user.role === "operator") {
+    const operatorDepartmentId = await getOperatorDepartmentId(user.sub);
+    return Boolean(operatorDepartmentId)
+      && canDepartmentAccessShipment(operatorDepartmentId, shipment);
+  }
+
+  if (user.role === "courier") {
+    const courier = await findUserById(user.sub);
+    const courierDepartmentId = courier?.department_id ? Number(courier.department_id) : null;
+    if (!courierDepartmentId) return false;
+
+    const deliveries = await listCourierDeliveries({
+      shipmentId: Number(shipment.id),
+      courierId: Number(user.sub),
+      courierDepartmentId,
+    });
+    return deliveries.length > 0;
+  }
+
+  return false;
 };
 
 // Оператор реєструє відправлення
@@ -74,8 +138,9 @@ const createShipmentHandler = async (req, res, next) => {
       shipmentType, sizeCategory,
       weightKg, lengthCm, widthCm, heightCm,
       declaredValue, description,
-      senderAddress: sender.full_name,
-      receiverAddress: receiverAddress?.trim() || receiver.full_name,
+      senderAddress: null,
+      receiverAddress: isCourier ? receiverAddress.trim() : null,
+      operatorId: req.user.sub,
       isCourier: isCourier || false,
     });
 
@@ -92,6 +157,11 @@ const getShipmentHandler = async (req, res, next) => {
     if (!shipment) {
       return res.status(404).json({ message: "Відправлення не знайдено" });
     }
+
+    if (!(await canAccessShipment(req.user, shipment))) {
+      return res.status(403).json({ message: "Немає прав для перегляду цього відправлення" });
+    }
+
     return res.status(200).json({ data: shipment });
   } catch (error) {
     return next(error);
@@ -177,16 +247,24 @@ const changeStatusHandler = async (req, res, next) => {
       return res.status(404).json({ message: "Відправлення не знайдено" });
     }
 
-    const departmentId = req.user.role === "operator"
-      ? await getOperatorDepartmentId(req.user.sub)
-      : req.user.departmentId || shipment.current_dept_id;
+    if (!canTransitionStatus(shipment.status, status)) {
+      return res.status(400).json({
+        message: `Недопустимий перехід статусу: ${shipment.status} -> ${status}`,
+      });
+    }
 
-    if (!departmentId) {
+    const actorDepartmentId = req.user.role === "operator"
+      ? await getOperatorDepartmentId(req.user.sub)
+      : req.user.departmentId || null;
+
+    const departmentId = getDepartmentForStatus(shipment, status);
+
+    if (req.user.role === "operator" && !actorDepartmentId) {
       return res.status(400).json({ message: "Оператору не призначено відділення" });
     }
 
     // Перевірка що відправлення належить відділенню оператора (Req7)
-    if (req.user.role === 'operator' && shipment.current_dept_id !== departmentId) {
+    if (req.user.role === 'operator' && Number(actorDepartmentId) !== Number(departmentId)) {
       return res.status(403).json({ message: "Відправлення не належить вашому відділенню" });
     }
 
@@ -216,7 +294,14 @@ const cancelShipmentHandler = async (req, res, next) => {
       return res.status(400).json({ message: "Скасування можливе лише до початку сортування" });
     }
 
-    const updated = await cancelShipment(id);
+    if (req.user.role === 'client' && Number(shipment.sender_id) !== Number(req.user.sub)) {
+      return res.status(403).json({ message: "Скасувати може тільки відправник" });
+    }
+
+    const updated = await cancelShipment(id, {
+      operatorId: req.user.sub,
+      departmentId: shipment.current_dept_id,
+    });
     return res.status(200).json({ data: updated, message: "Відправлення скасовано" });
   } catch (error) {
     return next(error);
@@ -226,10 +311,15 @@ const cancelShipmentHandler = async (req, res, next) => {
 const getShipmentHistoryHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
-    // Опціонально: можна додати перевірку на існування самого відправлення
-    // const shipment = await getShipmentById(id);
-    // if (!shipment) return res.status(404).json({ message: "Відправлення не знайдено" });
+
+    const shipment = await getShipmentById(id);
+    if (!shipment) {
+      return res.status(404).json({ message: "Відправлення не знайдено" });
+    }
+
+    if (!(await canAccessShipment(req.user, shipment))) {
+      return res.status(403).json({ message: "Немає прав для перегляду історії цього відправлення" });
+    }
 
     const history = await getShipmentHistory(id);
     

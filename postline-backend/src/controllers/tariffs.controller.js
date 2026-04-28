@@ -9,10 +9,26 @@ const {
 
 const createTariffHandler = async (req, res, next) => {
   try {
-    const { cityFrom, cityTo, shipmentType, sizeCategory, basePrice, pricePerKg } = req.body;
+    const {
+      cityFrom,
+      cityTo,
+      shipmentType,
+      sizeCategory,
+      basePrice,
+      pricePerKg,
+      courierBaseFee,
+      courierFeePerKg,
+    } = req.body;
 
     const tariff = await createTariff({
-      cityFrom, cityTo, shipmentType, sizeCategory, basePrice, pricePerKg,
+      cityFrom,
+      cityTo,
+      shipmentType,
+      sizeCategory,
+      basePrice,
+      pricePerKg,
+      courierBaseFee,
+      courierFeePerKg,
     });
 
     return res.status(201).json({ data: tariff, message: "Тариф успішно створено" });
@@ -52,14 +68,14 @@ const listTariffsHandler = async (req, res, next) => {
 const updateTariffHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { basePrice, pricePerKg } = req.body;
+    const { basePrice, pricePerKg, courierBaseFee, courierFeePerKg } = req.body;
 
     const tariff = await getTariffById(id);
     if (!tariff) {
       return res.status(404).json({ message: "Тариф не знайдено" });
     }
 
-    const updated = await updateTariff(id, { basePrice, pricePerKg });
+    const updated = await updateTariff(id, { basePrice, pricePerKg, courierBaseFee, courierFeePerKg });
     return res.status(200).json({ data: updated, message: "Тариф успішно оновлено" });
   } catch (error) {
     return next(error);
@@ -74,8 +90,8 @@ const deleteTariffHandler = async (req, res, next) => {
       return res.status(404).json({ message: "Тариф не знайдено" });
     }
 
-    await deleteTariff(id);
-    return res.status(200).json({ message: "Тариф успішно видалено" });
+    const updated = await deleteTariff(id);
+    return res.status(200).json({ data: updated, message: "Тариф успішно деактивовано" });
   } catch (error) {
     return next(error);
   }

@@ -9,6 +9,14 @@ import { SuccessView } from '../../components/shipment/SuccessView';
 import { ContactSection } from '../../components/shipment/ContactSection';
 import { ParcelSection } from '../../components/shipment/ParcelSection';
 import { CheckoutFooter } from '../../components/shipment/CheckoutFooter';
+import {
+  INPUT_LIMITS,
+  INPUT_PATTERNS,
+  sanitizeAddress,
+  sanitizeName,
+  sanitizePlainText,
+  sanitizeUaPhone,
+} from '../../utils/formUtils';
 
 const initialFormState: ShipmentFormData = {
   senderPhone: '+380', senderFullName: '', senderCity: '', senderBranch: '',
@@ -116,9 +124,13 @@ const NewShipmentPage = () => {
     }
 
     if (name === 'receiverPhone' || name === 'senderPhone') {
-      value = value.replace(/[^\d+]/g, '');
-      if (value.indexOf('+') > 0) value = '+' + value.replace(/\+/g, '');
-      if (value.length > 13) value = value.substring(0, 13);
+      value = sanitizeUaPhone(value);
+    } else if (name === 'receiverFullName' || name === 'senderFullName') {
+      value = sanitizeName(value);
+    } else if (name === 'receiverAddress') {
+      value = sanitizeAddress(value);
+    } else if (name === 'description') {
+      value = sanitizePlainText(value, INPUT_LIMITS.noteMax);
     }
 
     if (name === 'senderCity') {
@@ -147,7 +159,9 @@ const NewShipmentPage = () => {
   const declaredValueNum = Number(formData.declaredValue) || 0;
   const basePrice = tariff ? parseFloat(tariff.base_price) : 0;
   const weightSurcharge = tariff ? weightNum * parseFloat(tariff.price_per_kg) : 0;
-  const courierPrice = isCourier ? 20 : 0;
+  const courierBaseFee = tariff?.courier_base_fee != null ? parseFloat(tariff.courier_base_fee) : 0;
+  const courierFeePerKg = tariff?.courier_fee_per_kg != null ? parseFloat(tariff.courier_fee_per_kg) : 0;
+  const courierPrice = isCourier ? courierBaseFee + courierFeePerKg * weightNum : 0;
   const insurance = declaredValueNum > 500 ? Math.round(declaredValueNum * 0.005) : 0;
   const totalPrice = Math.round((basePrice + weightSurcharge + courierPrice + insurance) * 100) / 100;
 
@@ -169,16 +183,39 @@ const NewShipmentPage = () => {
 
     if (isCourier && !formData.receiverAddress.trim()) {
       newErrors.receiverAddress = "Обов'язкове поле для кур'єрської доставки";
+    } else if (isCourier && formData.receiverAddress.trim().length < INPUT_LIMITS.addressMin) {
+      newErrors.receiverAddress = `Мінімум ${INPUT_LIMITS.addressMin} символів`;
     }
 
-    if (formData.senderPhone && formData.senderPhone.length < 13) {
+    if (formData.senderPhone && !new RegExp(INPUT_PATTERNS.phone).test(formData.senderPhone)) {
       newErrors.senderPhone = 'Некоректний формат';
     }
-    if (formData.receiverPhone && formData.receiverPhone.length < 13) {
+    if (formData.receiverPhone && !new RegExp(INPUT_PATTERNS.phone).test(formData.receiverPhone)) {
       newErrors.receiverPhone = 'Некоректний формат';
+    }
+    if (formData.senderFullName && !new RegExp(INPUT_PATTERNS.personName).test(formData.senderFullName)) {
+      newErrors.senderFullName = 'Лише літери, пробіл, дефіс або апостроф';
+    }
+    if (formData.receiverFullName && !new RegExp(INPUT_PATTERNS.personName).test(formData.receiverFullName)) {
+      newErrors.receiverFullName = 'Лише літери, пробіл, дефіс або апостроф';
+    }
+    if (weightNum < INPUT_LIMITS.weightMin || weightNum > INPUT_LIMITS.weightMax) {
+      newErrors.weight = `Вага від ${INPUT_LIMITS.weightMin} до ${INPUT_LIMITS.weightMax} кг`;
+    }
+    (['length', 'width', 'height'] as const).forEach((field) => {
+      const value = Number(formData[field]) || 0;
+      if (value < INPUT_LIMITS.dimensionMin || value > INPUT_LIMITS.dimensionMax) {
+        newErrors[field] = `Від ${INPUT_LIMITS.dimensionMin} до ${INPUT_LIMITS.dimensionMax} см`;
+      }
+    });
+    if (declaredValueNum < 0 || declaredValueNum > INPUT_LIMITS.moneyMax) {
+      newErrors.declaredValue = `Вартість від 0 до ${INPUT_LIMITS.moneyMax} грн`;
     }
     if (!tariff && formData.senderCity && formData.receiverCity && maxDim > 0) {
       newErrors.tariff = 'Тариф для цього маршруту не знайдено';
+    }
+    if (isCourier && tariff && (tariff.courier_base_fee == null || tariff.courier_fee_per_kg == null)) {
+      newErrors.tariff = "Для цього тарифу не налаштовано вартість кур'єрської доставки";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -303,7 +340,7 @@ const NewShipmentPage = () => {
         <CheckoutFooter
           basePrice={basePrice}
           weightSurcharge={weightSurcharge}
-          isCourier={isCourier}
+          courierPrice={courierPrice}
           insurance={insurance}
           totalPrice={totalPrice}
           isSubmitting={isSubmitting}

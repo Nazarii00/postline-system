@@ -13,6 +13,7 @@ const { operatorRouter } = require("./routes/operators.routes");
 const { tariffRouter } = require("./routes/tariffs.routes");
 const { trackingRouter } = require("./routes/tracking.routes");
 const { notificationsRouter } = require("./routes/notifications.routes");
+const { reportsRouter } = require("./routes/reports.routes");
 const { errorHandler } = require("./middleware/error.middleware");
 
 const app = express();
@@ -32,6 +33,7 @@ app.use("/api/operators", operatorRouter);
 app.use("/api/tariffs", tariffRouter);
 app.use("/api/tracking", trackingRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/reports", reportsRouter);
 app.use(errorHandler);
 
 module.exports = { app };

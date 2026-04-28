@@ -93,7 +93,7 @@ const BranchesPage = () => {
       <section className="relative z-10 w-full px-4 md:px-8 py-8 md:py-12 flex flex-col flex-1 min-h-[800px] h-[calc(100vh-120px)] space-y-8">
         <BranchesHeader />
 
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 h-full overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 h-full overflow-hidden animate-in fade-in zoom-in-95 duration-300">
           <BranchSidebar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}

@@ -4,13 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import type { User } from "../../types/user";
-
-const sanitizeEmail = (value: string) => {
-  const cleaned = value.toLowerCase().replace(/[^a-z0-9@._+-]/g, "");
-  const [localPart = "", ...domainParts] = cleaned.split("@");
-  const domainPart = domainParts.join("");
-  return domainParts.length ? `${localPart}@${domainPart}` : localPart;
-};
+import { INPUT_LIMITS, INPUT_PATTERNS, sanitizeEmail } from "../../utils/formUtils";
 
 type LoginResponse = {
   token: string;
@@ -27,8 +21,9 @@ const LoginForm = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const isEmailValid = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
-  const isPasswordLongEnough = password.length >= 8;
+  const isEmailValid = new RegExp(INPUT_PATTERNS.email).test(email);
+  const isPasswordLongEnough = password.length >= INPUT_LIMITS.passwordMin;
+  const canSubmit = isEmailValid && isPasswordLongEnough && !isLoading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,8 +71,9 @@ const LoginForm = () => {
             placeholder="example@email.com"
             inputMode="email"
             autoComplete="email"
-            maxLength={100}
-            pattern="^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+            required
+            maxLength={INPUT_LIMITS.emailMax}
+            pattern={INPUT_PATTERNS.email}
             value={email}
             onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
             className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
@@ -90,15 +86,16 @@ const LoginForm = () => {
         <div>
           <div className="flex justify-between mb-1.5 ml-1">
             <label className="text-sm font-medium text-slate-700">Пароль</label>
-            <button type="button" className="text-xs text-slate-400 hover:text-pine underline">Забули пароль?</button>
+            <span className="text-xs text-slate-400">Відновлення через адміністратора</span>
           </div>
           <div className="relative">
             <input
               type={isPasswordVisible ? "text" : "password"}
               placeholder="••••••••"
               autoComplete="current-password"
-              minLength={8}
-              maxLength={64}
+              required
+              minLength={INPUT_LIMITS.passwordMin}
+              maxLength={INPUT_LIMITS.passwordMax}
               value={password}
               onChange={(e) => setPassword(e.target.value.replace(/\s/g, ""))}
               className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
@@ -120,7 +117,7 @@ const LoginForm = () => {
         {/* Використали isLoading для блокування кнопки та зміни тексту */}
         <button 
           type="submit"
-          disabled={isLoading}
+          disabled={!canSubmit}
           className="w-full bg-pine text-white py-4 rounded-xl font-bold hover:bg-pine/90 transition-all shadow-lg active:scale-[0.98] mt-2 disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center"
         >
           {isLoading ? "Завантаження..." : "Увійти"}

@@ -11,7 +11,10 @@ import {
   Calendar,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { Pagination } from '../../components/ui/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import type { Shipment } from '../../types/shipment';
+import { INPUT_LIMITS, sanitizePlainText } from '../../utils/formUtils';
 
 const STATUS_LABELS: Record<string, string> = {
   accepted: 'Прийнято',
@@ -76,7 +79,6 @@ const AllShipmentsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: null, direction: 'asc' });
-  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -98,7 +100,7 @@ const AllShipmentsPage = () => {
   }, [searchTerm, statusFilter, sortConfig]);
 
   const handleSort = (key: keyof Shipment) => {
-    setPage(1);
+    setCurrentPage(1);
     setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
@@ -124,8 +126,16 @@ const AllShipmentsPage = () => {
     return result;
   }, [shipments, searchTerm, statusFilter]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const {
+    activePage,
+    endIndex,
+    pageNumbers,
+    paginatedItems: paginated,
+    setCurrentPage,
+    startIndex,
+    totalItems,
+    totalPages,
+  } = usePagination(filtered, PAGE_SIZE);
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -148,9 +158,10 @@ const AllShipmentsPage = () => {
                 placeholder="Номер ТТН або ПІБ..."
                 value={searchTerm}
                 onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setPage(1);
+                  setSearchTerm(sanitizePlainText(e.target.value, INPUT_LIMITS.nameMax));
+                  setCurrentPage(1);
                 }}
+                maxLength={INPUT_LIMITS.nameMax}
                 className="pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:border-pine outline-none shadow-sm transition-all w-full sm:w-80"
               />
             </div>
@@ -160,7 +171,7 @@ const AllShipmentsPage = () => {
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value);
-                  setPage(1);
+                  setCurrentPage(1);
                 }}
                 className="pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-medium outline-none focus:border-pine shadow-sm appearance-none cursor-pointer"
               >
@@ -275,40 +286,20 @@ const AllShipmentsPage = () => {
             </table>
           </div>
 
-          <div className="px-6 py-5 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
-            <p className="text-xs font-semibold text-slate-500">
-              Показано {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}-{Math.min(page * PAGE_SIZE, filtered.length)} з {filtered.length} відправлень
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-900 transition-colors disabled:cursor-not-allowed"
-              >
-                Назад
-              </button>
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  className={`w-9 h-9 flex items-center justify-center text-sm font-semibold rounded-xl transition-colors ${
-                    page === p
-                      ? 'text-pine border border-pine/20 bg-pine/5 shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || totalPages === 0}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:text-slate-300"
-              >
-                Далі
-              </button>
+          {totalItems > 0 && (
+            <div className="px-6 py-5 bg-slate-50/50 border-t border-slate-100">
+              <Pagination
+                activePage={activePage}
+                endIndex={endIndex}
+                itemLabel="відправлень"
+                onPageChange={setCurrentPage}
+                pageNumbers={pageNumbers}
+                startIndex={startIndex}
+                totalItems={totalItems}
+                totalPages={totalPages}
+              />
             </div>
-          </div>
+          )}
         </div>
       </section>
     </main>

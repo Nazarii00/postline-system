@@ -67,8 +67,8 @@ const deleteDepartmentHandler = async (req, res, next) => {
       return res.status(404).json({ message: "Відділення не знайдено" });
     }
 
-    await deleteDepartment(id);
-    return res.status(200).json({ message: "Відділення успішно видалено" });
+    const updated = await deleteDepartment(id);
+    return res.status(200).json({ data: updated, message: "Відділення успішно деактивовано" });
   } catch (error) {
     return next(error);
   }

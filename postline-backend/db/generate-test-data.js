@@ -31,8 +31,6 @@ const BASE_IDS = {
   processingEvents: 400000,
   courierDeliveries: 500000,
   routes: 600000,
-  courierRoutes: 700000,
-  courierRouteStops: 800000,
   notifications: 900000,
 };
 
@@ -88,24 +86,139 @@ const PATRONYMICS_FEMALE = [
   "Василівна", "Романівна", "Юріївна", "Сергіївна", "Богданівна",
 ];
 
-const UKRAINIAN_STREETS = [
-  "вул. Шевченка",
-  "вул. Івана Франка",
-  "вул. Лесі Українки",
-  "вул. Грушевського",
-  "вул. Княгині Ольги",
-  "вул. Зелена",
-  "вул. Січових Стрільців",
-  "вул. Соборна",
-  "вул. Центральна",
-  "вул. Миру",
-  "вул. Незалежності",
-  "вул. Київська",
-  "вул. Львівська",
-  "просп. Свободи",
-  "просп. Перемоги",
-  "площа Ринок",
-];
+const REAL_ADDRESSES_BY_CITY = {
+  "Київ": [
+    "Київ, Хрещатик, 22",
+    "Київ, вул. Велика Васильківська, 57",
+    "Київ, вул. Саксаганського, 85",
+    "Київ, вул. Ярославів Вал, 15",
+    "Київ, вул. Антоновича, 50",
+    "Київ, просп. Берестейський, 37",
+    "Київ, вул. Володимирська, 40",
+    "Київ, вул. Богдана Хмельницького, 30",
+    "Київ, вул. Михайлівська, 12",
+    "Київ, вул. Межигірська, 24",
+  ],
+
+  "Львів": [
+    "Львів, просп. Свободи, 15",
+    "Львів, вул. Городоцька, 85",
+    "Львів, вул. Зелена, 109",
+    "Львів, вул. Стрийська, 45",
+    "Львів, вул. Наукова, 7",
+    "Львів, вул. Івана Франка, 20",
+    "Львів, пл. Ринок, 1",
+    "Львів, вул. Княгині Ольги, 100",
+    "Львів, вул. Шевченка, 60",
+    "Львів, вул. Личаківська, 75",
+  ],
+
+  "Одеса": [
+    "Одеса, вул. Дерибасівська, 10",
+    "Одеса, вул. Пушкінська, 15",
+    "Одеса, вул. Рішельєвська, 24",
+    "Одеса, просп. Шевченка, 4",
+    "Одеса, вул. Канатна, 42",
+    "Одеса, вул. Преображенська, 34",
+    "Одеса, вул. Велика Арнаутська, 55",
+    "Одеса, Французький бульвар, 24",
+    "Одеса, вул. Катерининська, 27",
+    "Одеса, вул. Маразліївська, 1",
+  ],
+
+  "Дніпро": [
+    "Дніпро, просп. Дмитра Яворницького, 40",
+    "Дніпро, вул. Короленка, 3",
+    "Дніпро, вул. Січеславська Набережна, 29",
+    "Дніпро, просп. Гагаріна, 72",
+    "Дніпро, вул. Робоча, 89",
+    "Дніпро, вул. Калинова, 12",
+    "Дніпро, вул. Титова, 36",
+    "Дніпро, просп. Поля, 27",
+    "Дніпро, вул. Старокозацька, 52",
+    "Дніпро, вул. Набережна Перемоги, 44",
+  ],
+
+  "Харків": [
+    "Харків, вул. Сумська, 25",
+    "Харків, просп. Науки, 14",
+    "Харків, вул. Пушкінська, 50",
+    "Харків, вул. Полтавський Шлях, 57",
+    "Харків, просп. Героїв Харкова, 144",
+    "Харків, вул. Клочківська, 197",
+    "Харків, вул. Академіка Павлова, 120",
+    "Харків, майдан Конституції, 1",
+    "Харків, вул. Чернишевська, 13",
+    "Харків, вул. Ярослава Мудрого, 30",
+  ],
+
+  "Вінниця": [
+    "Вінниця, вул. Соборна, 8",
+    "Вінниця, вул. Пирогова, 39",
+    "Вінниця, вул. Київська, 50",
+    "Вінниця, вул. Келецька, 57",
+    "Вінниця, просп. Космонавтів, 23",
+    "Вінниця, вул. Замостянська, 26",
+    "Вінниця, вул. Грушевського, 38",
+    "Вінниця, вул. Театральна, 20",
+    "Вінниця, вул. Хмельницьке шосе, 95",
+    "Вінниця, вул. Магістратська, 80",
+  ],
+
+  "Полтава": [
+    "Полтава, вул. Європейська, 12",
+    "Полтава, вул. Соборності, 45",
+    "Полтава, вул. Шевченка, 52",
+    "Полтава, вул. Пушкіна, 88",
+    "Полтава, вул. Зіньківська, 6",
+    "Полтава, вул. Маршала Бірюзова, 32",
+    "Полтава, вул. Небесної Сотні, 17",
+    "Полтава, вул. Гоголя, 22",
+    "Полтава, вул. Великотирнівська, 35",
+    "Полтава, вул. Котляревського, 6",
+  ],
+
+  "Чернігів": [
+    "Чернігів, просп. Миру, 33",
+    "Чернігів, вул. Шевченка, 36",
+    "Чернігів, вул. Гетьмана Полуботка, 18",
+    "Чернігів, вул. Рокоссовського, 20",
+    "Чернігів, вул. Київська, 14",
+    "Чернігів, вул. П’ятницька, 50",
+    "Чернігів, вул. Івана Мазепи, 55",
+    "Чернігів, вул. Любецька, 76",
+    "Чернігів, вул. Незалежності, 32",
+    "Чернігів, вул. Коцюбинського, 49",
+  ],
+
+  "Івано-Франківськ": [
+    "Івано-Франківськ, вул. Незалежності, 18",
+    "Івано-Франківськ, вул. Галицька, 22",
+    "Івано-Франківськ, вул. Коновальця, 35",
+    "Івано-Франківськ, вул. Січових Стрільців, 15",
+    "Івано-Франківськ, вул. Дністровська, 26",
+    "Івано-Франківськ, вул. Мазепи, 72",
+    "Івано-Франківськ, вул. Чорновола, 11",
+    "Івано-Франківськ, вул. Вовчинецька, 34",
+    "Івано-Франківськ, вул. Тичини, 8",
+    "Івано-Франківськ, вул. Бельведерська, 10",
+  ],
+
+  "Тернопіль": [
+    "Тернопіль, вул. Руська, 20",
+    "Тернопіль, вул. Текстильна, 28",
+    "Тернопіль, вул. Київська, 10",
+    "Тернопіль, просп. Степана Бандери, 34",
+    "Тернопіль, вул. Живова, 15",
+    "Тернопіль, вул. Замкова, 14",
+    "Тернопіль, вул. Шептицького, 20",
+    "Тернопіль, вул. Микулинецька, 46",
+    "Тернопіль, вул. Грушевського, 8",
+    "Тернопіль, вул. Сагайдачного, 6",
+  ],
+};
+
+const courierAddressCountersByCity = new Map();
 
 const realFullName = (index) => {
   const isFemale = index % 2 === 0;
@@ -122,15 +235,28 @@ const realFullName = (index) => {
 };
 
 const addressInCity = (city, index) => {
-  const street = UKRAINIAN_STREETS[index % UKRAINIAN_STREETS.length];
-  const building = 1 + (index * 7) % 120;
-  const apartment = 1 + (index * 11) % 90;
+  const addresses = REAL_ADDRESSES_BY_CITY[city];
 
-  if (index % 3 === 0) {
-    return `${city}, ${street}, ${building}, кв. ${apartment}`;
+  if (!addresses || addresses.length === 0) {
+    throw new Error(`No real address whitelist for city: ${city}`);
   }
 
-  return `${city}, ${street}, ${building}`;
+  const mixedIndex = Math.abs((index * 37 + Math.floor(index / 10) * 17) % addresses.length);
+
+  return addresses[mixedIndex];
+};
+
+const nextCourierAddressInCity = (city) => {
+  const addresses = REAL_ADDRESSES_BY_CITY[city];
+
+  if (!addresses || addresses.length === 0) {
+    throw new Error(`No real address whitelist for city: ${city}`);
+  }
+
+  const currentIndex = courierAddressCountersByCity.get(city) || 0;
+  courierAddressCountersByCity.set(city, currentIndex + 1);
+
+  return addresses[currentIndex % addresses.length];
 };
 
 const args = process.argv.slice(2);
@@ -225,6 +351,59 @@ const emitInsert = (tableName, columns, rows, batchSize = 400) => {
   }
 };
 
+const emitTriggerState = (tableName, triggerName, enabled) => {
+  const action = enabled ? "ENABLE" : "DISABLE";
+
+  emit("DO $$");
+  emit("BEGIN");
+  emit("  IF EXISTS (");
+  emit("    SELECT 1");
+  emit("    FROM pg_trigger");
+  emit(`    WHERE tgrelid = '${tableName}'::regclass`);
+  emit(`      AND tgname = '${triggerName}'`);
+  emit("  ) THEN");
+  emit(`    EXECUTE 'ALTER TABLE ${tableName} ${action} TRIGGER ${triggerName}';`);
+  emit("  END IF;");
+  emit("END $$;");
+  emit();
+};
+
+const emitShipmentStatusTriggerFunction = () => {
+  emit("CREATE OR REPLACE FUNCTION public.fn_log_status_change() RETURNS trigger");
+  emit("    LANGUAGE plpgsql");
+  emit("    AS $$");
+  emit("BEGIN");
+  emit("    IF TG_OP = 'INSERT' THEN");
+  emit("        INSERT INTO public.processing_events (");
+  emit("            shipment_id,");
+  emit("            department_id,");
+  emit("            operator_id,");
+  emit("            status_set");
+  emit("        ) VALUES (");
+  emit("            NEW.id,");
+  emit("            NEW.current_dept_id,");
+  emit("            NULLIF(current_setting('app.current_user_id', TRUE), '')::INT,");
+  emit("            NEW.status");
+  emit("        );");
+  emit("    ELSIF NEW.status IS DISTINCT FROM OLD.status THEN");
+  emit("        INSERT INTO public.processing_events (");
+  emit("            shipment_id,");
+  emit("            department_id,");
+  emit("            operator_id,");
+  emit("            status_set");
+  emit("        ) VALUES (");
+  emit("            NEW.id,");
+  emit("            NEW.current_dept_id,");
+  emit("            NULLIF(current_setting('app.current_user_id', TRUE), '')::INT,");
+  emit("            NEW.status");
+  emit("        );");
+  emit("    END IF;");
+  emit("    RETURN NEW;");
+  emit("END;");
+  emit("$$;");
+  emit();
+};
+
 const chooseStatus = (index) => {
   if (index % 29 === 0) return "cancelled";
   if (index % 23 === 0) return "returned";
@@ -267,7 +446,7 @@ const eventNote = (status) => {
 };
 
 const departments = [
-  ["Київ", "вул. Хрещатик, 1", "sorting_center"],
+  ["Київ", "Хрещатик, 1", "sorting_center"],
   ["Львів", "просп. Свободи, 15", "post_office"],
   ["Одеса", "вул. Дерибасівська, 10", "post_office"],
   ["Дніпро", "просп. Дмитра Яворницького, 40", "sorting_center"],
@@ -302,7 +481,7 @@ users.push({
   deleted_at: null,
 });
 
-const operators = departments.slice(0, 6).map((department, index) => ({
+const operators = departments.map((department, index) => ({
   id: BASE_IDS.users + 100 + index + 1,
   role: "operator",
   department_id: department.id,
@@ -329,6 +508,26 @@ const couriers = departments.map((department, index) => ({
 }));
 
 users.push(...couriers);
+
+const operatorByDepartmentId = new Map(
+  operators.map((operator) => [operator.department_id, operator])
+);
+
+const courierByDepartmentId = new Map(
+  couriers.map((courier) => [courier.department_id, courier])
+);
+
+const operatorForDepartment = (departmentId) => {
+  const operator = operatorByDepartmentId.get(departmentId);
+  if (!operator) throw new Error(`No operator for department ${departmentId}`);
+  return operator;
+};
+
+const courierForDepartment = (departmentId) => {
+  const courier = courierByDepartmentId.get(departmentId);
+  if (!courier) throw new Error(`No courier for department ${departmentId}`);
+  return courier;
+};
 
 const clientCount = Math.max(260, Math.ceil(shipmentCount / 4));
 
@@ -424,21 +623,65 @@ const shipments = [];
 const shipmentDetails = [];
 const processingEvents = [];
 const courierDeliveries = [];
-const courierRoutes = [];
-const courierRouteStops = [];
 const notifications = [];
-const shipmentById = new Map();
 
 let processingEventId = BASE_IDS.processingEvents + 1;
 let courierDeliveryId = BASE_IDS.courierDeliveries + 1;
-let courierRouteId = BASE_IDS.courierRoutes + 1;
-let courierRouteStopId = BASE_IDS.courierRouteStops + 1;
 let notificationId = BASE_IDS.notifications + 1;
+
+const shipmentNotificationContent = {
+  ready_for_pickup: {
+    title: "Відправлення готове до видачі",
+    message: (trackingNumber) => `Відправлення ${trackingNumber} готове до видачі у відділенні призначення.`,
+  },
+  delivered: {
+    title: "Відправлення доставлено",
+    message: (trackingNumber) => `Відправлення ${trackingNumber} успішно доставлено.`,
+  },
+  returned: {
+    title: "Відправлення повертається",
+    message: (trackingNumber) => `Відправлення ${trackingNumber} повертається відправнику.`,
+  },
+  cancelled: {
+    title: "Відправлення скасовано",
+    message: (trackingNumber) => `Відправлення ${trackingNumber} скасовано.`,
+  },
+};
+
+const notificationRecipients = (senderId, receiverId) =>
+  Array.from(new Set([senderId, receiverId].filter(Boolean)));
+
+const pushNotificationsForRecipients = ({
+  shipmentId,
+  recipientIds,
+  type,
+  title,
+  message,
+  metadata,
+  readAt = null,
+  createdAt,
+}) => {
+  recipientIds.forEach((recipientId) => {
+    notifications.push({
+      id: notificationId++,
+      shipment_id: shipmentId,
+      recipient_id: recipientId,
+      type,
+      title,
+      message,
+      channel: "database",
+      metadata: JSON.stringify(metadata),
+      read_at: readAt,
+      created_at: createdAt,
+    });
+  });
+};
 
 const baseDate = new Date(Date.UTC(2026, 0, 5, 8, 0, 0));
 
 for (let index = 0; index < shipmentCount; index += 1) {
   const sequence = index + 1;
+  const trackingNumber = `PLT${pad(sequence, 7)}`;
   const originDepartment = departments[index % departments.length];
   const destDepartment = departments[(index * 3 + 4) % departments.length];
   const sender = clients[index % clients.length];
@@ -453,6 +696,7 @@ for (let index = 0; index < shipmentCount; index += 1) {
   const createdAt = addMinutes(baseDate, index * 73);
   const weightKg = Number((0.2 + ((index * 37) % 240) / 10).toFixed(2));
   const declaredValue = index % 6 === 0 ? money(300 + (index % 40) * 75) : null;
+  const insurance = Number(declaredValue || 0) > 500 ? Math.round(Number(declaredValue) * 0.005) : 0;
 
   const isCourierCandidate = ["ready_for_pickup", "delivered"].includes(status) && index % 4 === 0;
   const terminalFailedCourier = status === "ready_for_pickup" && index % 64 === 0;
@@ -460,21 +704,25 @@ for (let index = 0; index < shipmentCount; index += 1) {
   const failedAttempts = terminalFailedCourier ? 3 : oneFailedCourier ? 1 : 0;
   const isCourier = isCourierCandidate && failedAttempts < 3;
 
-  const courierAddress = addressInCity(destDepartment.city, index + 80);
+  const courierAddress =
+    isCourier || failedAttempts > 0
+      ? nextCourierAddressInCity(destDepartment.city)
+      : null;
 
   const totalCost =
     Number(tariff.base_price) +
     Number(tariff.price_per_kg) * weightKg +
     (isCourier
       ? Number(tariff.courier_base_fee) + Number(tariff.courier_fee_per_kg) * weightKg
-      : 0);
+      : 0) +
+    insurance;
 
   const shipmentId = BASE_IDS.shipments + sequence;
   const route = routeByDepartments.get(`${originDepartment.id}|${destDepartment.id}`) || null;
 
   const shipment = {
     id: shipmentId,
-    tracking_number: `PLT${pad(sequence, 7)}`,
+    tracking_number: trackingNumber,
     sender_id: sender.id,
     receiver_id: receiver.id,
     origin_dept_id: originDepartment.id,
@@ -489,7 +737,6 @@ for (let index = 0; index < shipmentCount; index += 1) {
   };
 
   shipments.push(shipment);
-  shipmentById.set(shipmentId, shipment);
 
   shipmentDetails.push({
     shipment_id: shipmentId,
@@ -509,42 +756,45 @@ for (let index = 0; index < shipmentCount; index += 1) {
   });
 
   STATUS_FLOW[status].forEach((eventStatus, eventIndex) => {
+    const eventDepartmentId = departmentForEvent(eventStatus, originDepartment.id, destDepartment.id);
+
     processingEvents.push({
       id: processingEventId++,
       shipment_id: shipmentId,
-      department_id: departmentForEvent(eventStatus, originDepartment.id, destDepartment.id),
-      operator_id: operators[(index + eventIndex) % operators.length].id,
+      department_id: eventDepartmentId,
+      operator_id: operatorForDepartment(eventDepartmentId).id,
       status_set: eventStatus,
       notes: eventNote(eventStatus),
       created_at: formatTimestamp(addMinutes(createdAt, eventIndex * 180)),
     });
   });
 
-  if (["ready_for_pickup", "delivered", "cancelled", "returned"].includes(status)) {
-    notifications.push({
-      id: notificationId++,
-      shipment_id: shipmentId,
-      recipient_id: receiver.id,
+  const recipients = notificationRecipients(sender.id, receiver.id);
+  const shipmentNotification = shipmentNotificationContent[status];
+
+  if (shipmentNotification) {
+    pushNotificationsForRecipients({
+      shipmentId,
+      recipientIds: recipients,
       type: `shipment_${status}`,
-      title: status === "ready_for_pickup"
-        ? "Відправлення готове до видачі"
-        : `Статус відправлення змінено: ${status}`,
-      message: `Поточний статус відправлення PLT${pad(sequence, 7)}: ${status}.`,
-      channel: "database",
-      metadata: JSON.stringify({ trackingNumber: `PLT${pad(sequence, 7)}`, status }),
-      read_at: index % 4 === 0 ? formatTimestamp(addMinutes(createdAt, 600)) : null,
-      created_at: formatTimestamp(addMinutes(createdAt, STATUS_FLOW[status].length * 180 + 15)),
+      title: shipmentNotification.title,
+      message: shipmentNotification.message(trackingNumber),
+      metadata: { trackingNumber, status },
+      readAt: index % 4 === 0 ? formatTimestamp(addMinutes(createdAt, 600)) : null,
+      createdAt: formatTimestamp(addMinutes(createdAt, STATUS_FLOW[status].length * 180 + 15)),
     });
   }
 
   if (isCourier || failedAttempts > 0) {
-    const courier = couriers[index % couriers.length];
-    const operator = operators[index % operators.length];
+    const courier = courierForDepartment(destDepartment.id);
+    const operator = operatorForDepartment(destDepartment.id);
     const deliveryBaseDate = addMinutes(createdAt, STATUS_FLOW[status].length * 180 + 60);
 
     for (let attempt = 1; attempt <= failedAttempts; attempt += 1) {
+      const deliveryId = courierDeliveryId++;
+
       courierDeliveries.push({
-        id: courierDeliveryId++,
+        id: deliveryId,
         shipment_id: shipmentId,
         courier_id: courier.id,
         operator_id: operator.id,
@@ -555,30 +805,26 @@ for (let index = 0; index < shipmentCount; index += 1) {
           : "Одержувач не відповів на телефонний дзвінок",
         notes: `Згенерована невдала спроба кур’єрської доставки №${attempt}`,
         attempt_datetime: formatTimestamp(addMinutes(deliveryBaseDate, attempt * 1440)),
-        route_id: null,
-        route_order: null,
       });
 
-      notifications.push({
-        id: notificationId++,
-        shipment_id: shipmentId,
-        recipient_id: receiver.id,
+      pushNotificationsForRecipients({
+        shipmentId,
+        recipientIds: recipients,
         type: "courier_delivery_failed",
-        title: "Кур’єрська доставка не виконана",
-        message: `Спроба кур’єрської доставки №${attempt} для відправлення PLT${pad(sequence, 7)} завершилась невдало.`,
-        channel: "database",
-        metadata: JSON.stringify({ trackingNumber: `PLT${pad(sequence, 7)}`, attempt }),
-        read_at: null,
-        created_at: formatTimestamp(addMinutes(deliveryBaseDate, attempt * 1440 + 10)),
+        title: "Кур'єрська доставка не виконана",
+        message: `Спроба кур'єрської доставки №${attempt} для відправлення ${trackingNumber} завершилась невдало.`,
+        metadata: { trackingNumber, courierDeliveryId: deliveryId, attempt, status: "failed" },
+        createdAt: formatTimestamp(addMinutes(deliveryBaseDate, attempt * 1440 + 10)),
       });
     }
 
     if (isCourier) {
       const deliveryStatus =
         status === "delivered" ? "delivered" : index % 3 === 0 ? "in_progress" : "assigned";
+      const deliveryId = courierDeliveryId++;
 
       courierDeliveries.push({
-        id: courierDeliveryId++,
+        id: deliveryId,
         shipment_id: shipmentId,
         courier_id: courier.id,
         operator_id: operator.id,
@@ -589,84 +835,38 @@ for (let index = 0; index < shipmentCount; index += 1) {
           ? "Згенерована успішна кур’єрська доставка"
           : "Згенерована активна кур’єрська доставка",
         attempt_datetime: formatTimestamp(addMinutes(deliveryBaseDate, 90)),
-        route_id: null,
-        route_order: null,
+      });
+
+      pushNotificationsForRecipients({
+        shipmentId,
+        recipientIds: recipients,
+        type: "courier_delivery_assigned",
+        title: "Кур'єра призначено",
+        message: `Для відправлення ${trackingNumber} призначено кур'єрську доставку.`,
+        metadata: { trackingNumber, courierDeliveryId: deliveryId, status: deliveryStatus },
+        readAt: index % 6 === 0 ? formatTimestamp(addMinutes(deliveryBaseDate, 120)) : null,
+        createdAt: formatTimestamp(addMinutes(deliveryBaseDate, 75)),
       });
     }
   }
 }
 
-const activeCourierDeliveries = courierDeliveries.filter((delivery) =>
-  ["assigned", "in_progress"].includes(delivery.status)
-);
-
-const activeDeliveriesByCourier = new Map();
-
-for (const delivery of activeCourierDeliveries) {
-  if (!activeDeliveriesByCourier.has(delivery.courier_id)) {
-    activeDeliveriesByCourier.set(delivery.courier_id, []);
-  }
-
-  activeDeliveriesByCourier.get(delivery.courier_id).push(delivery);
-}
-
-for (const [courierId, deliveries] of activeDeliveriesByCourier.entries()) {
-  const courier = couriers.find((user) => user.id === courierId);
-  const courierDepartment = departments.find((department) => department.id === courier.department_id);
-
-  for (let groupIndex = 0; groupIndex < deliveries.length; groupIndex += 5) {
-    const routeDeliveries = deliveries.slice(groupIndex, groupIndex + 5);
-    const routeCreatedAt = routeDeliveries[0]?.attempt_datetime || "2026-01-01 10:00:00";
-
-    const courierRoute = {
-      id: courierRouteId++,
-      courier_id: courierId,
-      operator_id: routeDeliveries[0].operator_id,
-      start_address: `${courierDepartment.city}, ${courierDepartment.address}`,
-      distance_meters: 3500 + routeDeliveries.length * 1850 + groupIndex * 120,
-      duration_seconds: 900 + routeDeliveries.length * 780 + groupIndex * 60,
-      geometry: JSON.stringify({ type: "LineString", coordinates: [] }),
-      status: "confirmed",
-      confirmed_at: routeCreatedAt,
-      created_at: routeCreatedAt,
-    };
-
-    courierRoutes.push(courierRoute);
-
-    routeDeliveries.forEach((delivery, stopIndex) => {
-      delivery.route_id = courierRoute.id;
-      delivery.route_order = stopIndex + 1;
-
-      const shipment = shipmentById.get(delivery.shipment_id);
-      const destinationDepartment = departments.find(
-        (department) => department.id === shipment.dest_dept_id
-      );
-
-      courierRouteStops.push({
-        id: courierRouteStopId++,
-        route_id: courierRoute.id,
-        courier_delivery_id: delivery.id,
-        stop_order: stopIndex + 1,
-        to_address: delivery.to_address,
-        resolved_address: addressInCity(destinationDepartment.city, delivery.id),
-        lat: Number((49.0 + ((delivery.id + stopIndex) % 1000) / 10000).toFixed(7)),
-        lng: Number((24.0 + ((delivery.id + stopIndex * 3) % 1000) / 10000).toFixed(7)),
-        result_status: null,
-        result_notes: null,
-        created_at: routeCreatedAt,
-      });
-    });
-  }
-}
-
 emit("-- Generated PostLine test data.");
-emit("-- Compatible with the uploaded schema sql2.");
+emit("-- Compatible with sql4 schema without persisted courier route tables.");
+emit("-- Temporarily disables trigger-generated side effects while loading deterministic history.");
+emit("-- Uses real whitelisted addresses per city for stable geocoding.");
+emit("-- Courier deliveries stay inside destination city and rotate through city-specific addresses.");
+emit("-- Repairs shipment status trigger to write processing_events, not legacy processing_history.");
 emit("-- This file was generated by db/generate-test-data.js.");
 emit(`-- Shipments: ${shipmentCount}`);
 emit(`-- Generated user password: ${DEMO_PASSWORD}`);
 emit();
 emit("BEGIN;");
 emit();
+
+emitShipmentStatusTriggerFunction();
+emitTriggerState("public.shipments", "trg_shipment_status", false);
+emitTriggerState("public.courier_deliveries", "trg_courier_attempt", false);
 
 emitInsert("public.departments", [
   "id",
@@ -761,19 +961,6 @@ emitInsert("public.processing_events", [
   "created_at",
 ], processingEvents);
 
-emitInsert("public.courier_routes", [
-  "id",
-  "courier_id",
-  "operator_id",
-  "start_address",
-  "distance_meters",
-  "duration_seconds",
-  "geometry",
-  "status",
-  "confirmed_at",
-  "created_at",
-], courierRoutes);
-
 emitInsert("public.courier_deliveries", [
   "id",
   "shipment_id",
@@ -784,23 +971,7 @@ emitInsert("public.courier_deliveries", [
   "failure_reason",
   "notes",
   "attempt_datetime",
-  "route_id",
-  "route_order",
 ], courierDeliveries);
-
-emitInsert("public.courier_route_stops", [
-  "id",
-  "route_id",
-  "courier_delivery_id",
-  "stop_order",
-  "to_address",
-  "resolved_address",
-  "lat",
-  "lng",
-  "result_status",
-  "result_notes",
-  "created_at",
-], courierRouteStops);
 
 emitInsert("public.notifications", [
   "id",
@@ -815,15 +986,16 @@ emitInsert("public.notifications", [
   "created_at",
 ], notifications);
 
+emitTriggerState("public.courier_deliveries", "trg_courier_attempt", true);
+emitTriggerState("public.shipments", "trg_shipment_status", true);
+
 emit("SELECT setval('public.departments_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.departments), 1), true);");
 emit("SELECT setval('public.users_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.users), 1), true);");
 emit("SELECT setval('public.tariffs_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.tariffs), 1), true);");
 emit("SELECT setval('public.routes_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.routes), 1), true);");
 emit("SELECT setval('public.shipments_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.shipments), 1), true);");
 emit("SELECT setval('public.processing_events_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.processing_events), 1), true);");
-emit("SELECT setval('public.courier_routes_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.courier_routes), 1), true);");
 emit("SELECT setval('public.courier_deliveries_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.courier_deliveries), 1), true);");
-emit("SELECT setval('public.courier_route_stops_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.courier_route_stops), 1), true);");
 emit("SELECT setval('public.notifications_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM public.notifications), 1), true);");
 
 emit();
@@ -835,4 +1007,3 @@ console.log("SQL-файл з тестовими даними створено.")
 console.log(`Шлях: ${outputPath}`);
 console.log(`Кількість відправлень: ${shipmentCount}`);
 console.log(`Пароль для всіх тестових користувачів: ${DEMO_PASSWORD}`);
-

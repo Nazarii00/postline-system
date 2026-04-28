@@ -77,7 +77,13 @@ const updateRoute = (id, { distanceKm, estTimeHours }) =>
   );
 
 const deleteRoute = (id) =>
-  db.run('UPDATE routes SET deleted_at = NOW() WHERE id = $1', [id]);
+  db.one(
+    `UPDATE routes
+     SET deleted_at = COALESCE(deleted_at, NOW())
+     WHERE id = $1
+     RETURNING *`,
+    [id]
+  );
 
 module.exports = {
   createRoute,

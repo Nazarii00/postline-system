@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../../../services/api';
 import type { Operator, Department } from '../../../types/operators';
+import {
+  INPUT_LIMITS,
+  INPUT_PATTERNS,
+  sanitizeName,
+  sanitizeUaPhone,
+} from '../../../utils/formUtils';
 
 interface Props {
   operator: Operator;
@@ -29,11 +35,11 @@ const EditOperatorModal = ({ operator, departments, onClose, onSuccess }: Props)
     e.preventDefault();
     setError('');
 
-    if (fullName.trim().length < 2) {
+    if (fullName.trim().length < INPUT_LIMITS.nameMin || !new RegExp(INPUT_PATTERNS.personName).test(fullName)) {
       setError("Ім'я має містити мінімум 2 символи");
       return;
     }
-    if (phone && !/^\+380\d{9}$/.test(phone)) {
+    if (phone && !new RegExp(INPUT_PATTERNS.phone).test(phone)) {
       setError('Телефон має бути у форматі +380XXXXXXXXX');
       return;
     }
@@ -81,8 +87,11 @@ const EditOperatorModal = ({ operator, departments, onClose, onSuccess }: Props)
             <input
               type="text"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              maxLength={100}
+              onChange={(e) => setFullName(sanitizeName(e.target.value))}
+              required
+              minLength={INPUT_LIMITS.nameMin}
+              maxLength={INPUT_LIMITS.nameMax}
+              pattern={INPUT_PATTERNS.personName}
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
             />
           </div>
@@ -92,10 +101,12 @@ const EditOperatorModal = ({ operator, departments, onClose, onSuccess }: Props)
               Телефон
             </label>
             <input
-              type="text"
+              type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(sanitizeUaPhone(e.target.value, true))}
               placeholder="+380XXXXXXXXX"
+              inputMode="numeric"
+              pattern={INPUT_PATTERNS.phone}
               maxLength={13}
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
             />

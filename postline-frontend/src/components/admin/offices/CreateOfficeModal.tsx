@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../../../services/api';
+import {
+  INPUT_LIMITS,
+  INPUT_PATTERNS,
+  sanitizeAddress,
+  sanitizeCity,
+  sanitizeUaPhone,
+} from '../../../utils/formUtils';
 
 interface Props {
   onClose: () => void;
@@ -29,13 +36,13 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
   const validate = (): FieldErrors => {
     const nextErrors: FieldErrors = {};
 
-    if (!city.trim() || city.trim().length < 2) {
+    if (!city.trim() || city.trim().length < INPUT_LIMITS.cityMin || !new RegExp(INPUT_PATTERNS.city).test(city)) {
       nextErrors.city = 'Мінімум 2 символи';
     }
-    if (!address.trim() || address.trim().length < 5) {
+    if (!address.trim() || address.trim().length < INPUT_LIMITS.addressMin) {
       nextErrors.address = 'Мінімум 5 символів';
     }
-    if (phone && !/^\+380\d{9}$/.test(phone)) {
+    if (phone && !new RegExp(INPUT_PATTERNS.phone).test(phone)) {
       nextErrors.phone = 'Формат: +380XXXXXXXXX';
     }
     if (openingTime && closingTime && openingTime >= closingTime) {
@@ -46,16 +53,12 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
   };
 
   const handlePhoneChange = (value: string) => {
-    let cleaned = value.replace(/[^\d+]/g, '');
-    if (!cleaned.startsWith('+')) cleaned = `+${cleaned.replace(/\+/g, '')}`;
-    if (cleaned.length > 13) cleaned = cleaned.slice(0, 13);
-    setPhone(cleaned);
+    setPhone(sanitizeUaPhone(value, true));
     if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }));
   };
 
   const handleCityChange = (value: string) => {
-    const cleaned = value.replace(/[^A-Za-zА-Яа-яІіЇїЄє' -]/g, '');
-    setCity(cleaned);
+    setCity(sanitizeCity(value));
     if (errors.city) setErrors((prev) => ({ ...prev, city: undefined }));
   };
 
@@ -126,7 +129,10 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
               value={city}
               onChange={(e) => handleCityChange(e.target.value)}
               placeholder="Київ"
-              maxLength={100}
+              required
+              minLength={INPUT_LIMITS.cityMin}
+              maxLength={INPUT_LIMITS.cityMax}
+              pattern={INPUT_PATTERNS.city}
               className={inputClass(errors.city)}
             />
             <ErrorMsg msg={errors.city} />
@@ -140,11 +146,13 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
               type="text"
               value={address}
               onChange={(e) => {
-                setAddress(e.target.value);
+                setAddress(sanitizeAddress(e.target.value));
                 if (errors.address) setErrors((prev) => ({ ...prev, address: undefined }));
               }}
               placeholder="вул. Шевченка, 15"
-              maxLength={200}
+              required
+              minLength={INPUT_LIMITS.addressMin}
+              maxLength={INPUT_LIMITS.addressMax}
               className={inputClass(errors.address)}
             />
             <ErrorMsg msg={errors.address} />
@@ -153,6 +161,7 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
           <div>
             <label className={labelClass}>Тип відділення</label>
             <select
+              required
               value={type}
               onChange={(e) => setType(e.target.value)}
               className={inputClass()}
@@ -166,10 +175,12 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
           <div>
             <label className={labelClass}>Телефон</label>
             <input
-              type="text"
+              type="tel"
               value={phone}
               onChange={(e) => handlePhoneChange(e.target.value)}
               placeholder="+380441234567"
+              inputMode="numeric"
+              pattern={INPUT_PATTERNS.phone}
               maxLength={13}
               className={inputClass(errors.phone)}
             />
@@ -184,6 +195,7 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
               <input
                 type="time"
                 value={openingTime}
+                required
                 onChange={(e) => {
                   setOpeningTime(e.target.value);
                   if (errors.closingTime) setErrors((prev) => ({ ...prev, closingTime: undefined }));
@@ -196,6 +208,7 @@ const CreateOfficeModal = ({ onClose, onSuccess }: Props) => {
               <input
                 type="time"
                 value={closingTime}
+                required
                 onChange={(e) => {
                   setClosingTime(e.target.value);
                   if (errors.closingTime) setErrors((prev) => ({ ...prev, closingTime: undefined }));

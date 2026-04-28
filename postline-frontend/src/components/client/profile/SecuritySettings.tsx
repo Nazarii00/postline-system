@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Eye, EyeOff, Shield, X } from 'lucide-react';
 import { api } from '../../../services/api';
+import { INPUT_LIMITS } from '../../../utils/formUtils';
 
 type PasswordFieldProps = {
   label: string;
@@ -20,6 +21,9 @@ const PasswordField = ({ label, value, isVisible, onToggle, onChange }: Password
         type={isVisible ? 'text' : 'password'}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/\s/g, ''))}
+        required
+        minLength={INPUT_LIMITS.passwordMin}
+        maxLength={INPUT_LIMITS.passwordMax}
         className="w-full px-4 py-3 pr-12 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
       />
       <button

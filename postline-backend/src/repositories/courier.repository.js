@@ -1,4 +1,8 @@
 const db = require("../db");
+const {
+  createCourierDeliveryNotification,
+  createShipmentStatusNotifications,
+} = require("./notifications.repository");
 
 const courierDeliverySelect = `
   SELECT cd.*,
@@ -7,23 +11,82 @@ const courierDeliverySelect = `
          s.current_dept_id,
          s.dest_dept_id,
          s.failed_attempts,
+         current_dept.city AS current_city,
+         dest_dept.city AS dest_city,
          receiver.full_name AS receiver_name,
          receiver.phone AS receiver_phone,
          courier.full_name AS courier_name,
-         courier.phone AS courier_phone
+         courier.phone AS courier_phone,
+         courier_dept.city AS courier_city
   FROM courier_deliveries cd
   JOIN shipments s ON s.id = cd.shipment_id
   JOIN users receiver ON receiver.id = s.receiver_id
+  LEFT JOIN departments current_dept ON current_dept.id = s.current_dept_id
+  JOIN departments dest_dept ON dest_dept.id = s.dest_dept_id
   LEFT JOIN users courier ON courier.id = cd.courier_id
+  LEFT JOIN departments courier_dept ON courier_dept.id = courier.department_id
 `;
 
-const createCourierDelivery = ({ shipmentId, courierId, operatorId, toAddress, notes }) =>
-  db.one(
-    `INSERT INTO courier_deliveries (shipment_id, courier_id, operator_id, to_address, notes)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [shipmentId, courierId, operatorId, toAddress, notes || null]
+const ensureProcessingEvent = async (client, {
+  shipmentId,
+  departmentId,
+  operatorId,
+  status,
+  notes = null,
+}) => {
+  const { rows: [existingEvent] } = await client.query(
+    `SELECT id
+     FROM processing_events
+     WHERE shipment_id = $1 AND status_set = $2
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+    [shipmentId, status]
   );
+
+  if (existingEvent) {
+    if (notes) {
+      await client.query(
+        `UPDATE processing_events
+         SET notes = $1
+         WHERE id = $2`,
+        [notes, existingEvent.id]
+      );
+    }
+
+    return existingEvent;
+  }
+
+  const { rows: [createdEvent] } = await client.query(
+    `INSERT INTO processing_events
+       (shipment_id, department_id, operator_id, status_set, notes)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
+    [shipmentId, departmentId || null, operatorId || null, status, notes || null]
+  );
+
+  return createdEvent;
+};
+
+const createCourierDelivery = ({ shipmentId, courierId, operatorId, toAddress, notes }) =>
+  db.tx(async (client) => {
+    const { rows: [delivery] } = await client.query(
+      `INSERT INTO courier_deliveries (shipment_id, courier_id, operator_id, to_address, notes)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [shipmentId, courierId, operatorId, toAddress, notes || null]
+    );
+
+    if (delivery) {
+      await createCourierDeliveryNotification(client, {
+        shipmentId: delivery.shipment_id,
+        deliveryId: delivery.id,
+        type: "courier_delivery_assigned",
+        status: delivery.status,
+      });
+    }
+
+    return delivery;
+  });
 
 const getCourierDeliveryById = (id) =>
   db.one(
@@ -32,7 +95,13 @@ const getCourierDeliveryById = (id) =>
     [id]
   );
 
-const listCourierDeliveries = ({ shipmentId, courierId, status, departmentId } = {}) =>
+const listCourierDeliveries = ({
+  shipmentId,
+  courierId,
+  status,
+  departmentId,
+  courierDepartmentId,
+} = {}) =>
   db.many(
     `${courierDeliverySelect}
      WHERE ($1::int IS NULL OR cd.shipment_id = $1)
@@ -42,12 +111,35 @@ const listCourierDeliveries = ({ shipmentId, courierId, status, departmentId } =
          $4::int IS NULL
          OR (s.current_dept_id = $4 AND s.dest_dept_id = $4)
        )
+       AND (
+         $5::int IS NULL
+         OR (courier_dept.id = $5 AND courier_dept.city = dest_dept.city)
+       )
      ORDER BY cd.attempt_datetime DESC`,
-    [shipmentId || null, courierId || null, status || null, departmentId || null]
+    [
+      shipmentId || null,
+      courierId || null,
+      status || null,
+      departmentId || null,
+      courierDepartmentId || null,
+    ]
   );
 
-const updateCourierDeliveryStatus = async (id, { status, failureReason, notes }) => {
+const updateCourierDeliveryStatus = async (id, { status, failureReason, notes, actorId }) => {
   return db.tx(async (client) => {
+    if (actorId) {
+      await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(actorId)]);
+    }
+
+    const { rows: [shipmentBeforeDeliveryUpdate] } = await client.query(
+      `SELECT s.id, s.failed_attempts
+       FROM courier_deliveries cd
+       JOIN shipments s ON s.id = cd.shipment_id
+       WHERE cd.id = $1
+       FOR UPDATE OF s`,
+      [id]
+    );
+
     const { rows: [delivery] } = await client.query(
       `UPDATE courier_deliveries
        SET status = $2,
@@ -66,22 +158,49 @@ const updateCourierDeliveryStatus = async (id, { status, failureReason, notes })
     if (status === "delivered") {
       const { rows: [updatedShipment] } = await client.query(
         `UPDATE shipments
-         SET status = 'delivered'
+         SET status = 'delivered',
+             current_dept_id = dest_dept_id
          WHERE id = $1
          RETURNING *`,
         [delivery.shipment_id]
       );
       shipment = updatedShipment;
+
+      if (updatedShipment) {
+        await ensureProcessingEvent(client, {
+          shipmentId: updatedShipment.id,
+          departmentId: updatedShipment.current_dept_id || updatedShipment.dest_dept_id,
+          operatorId: actorId,
+          status: "delivered",
+          notes,
+        });
+        await createShipmentStatusNotifications(client, updatedShipment, "delivered");
+      }
     }
 
     if (status === "failed") {
-      const { rows: [updatedShipment] } = await client.query(
-        `UPDATE shipments
-         SET failed_attempts = COALESCE(failed_attempts, 0) + 1
-         WHERE id = $1
-         RETURNING *`,
+      const { rows: [shipmentAfterDeliveryUpdate] } = await client.query(
+        `SELECT *
+         FROM shipments
+         WHERE id = $1`,
         [delivery.shipment_id]
       );
+
+      const previousAttempts = Number(shipmentBeforeDeliveryUpdate?.failed_attempts || 0);
+      const attemptsAfterDeliveryUpdate = Number(shipmentAfterDeliveryUpdate?.failed_attempts || 0);
+      let updatedShipment = shipmentAfterDeliveryUpdate;
+
+      if (attemptsAfterDeliveryUpdate === previousAttempts) {
+        const { rows: [incrementedShipment] } = await client.query(
+          `UPDATE shipments
+           SET failed_attempts = COALESCE(failed_attempts, 0) + 1
+           WHERE id = $1
+           RETURNING *`,
+          [delivery.shipment_id]
+        );
+        updatedShipment = incrementedShipment;
+      }
+
       shipment = updatedShipment;
 
       if (Number(updatedShipment.failed_attempts) >= 3) {
@@ -93,6 +212,16 @@ const updateCourierDeliveryStatus = async (id, { status, failureReason, notes })
         );
         courierPickupFallback = true;
       }
+
+      await createCourierDeliveryNotification(client, {
+        shipmentId: delivery.shipment_id,
+        deliveryId: delivery.id,
+        type: "courier_delivery_failed",
+        status,
+        failureReason: failureReason || delivery.failure_reason,
+        failedAttempts: updatedShipment?.failed_attempts ?? null,
+        courierPickupFallback,
+      });
     }
 
     return {

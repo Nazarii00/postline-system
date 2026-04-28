@@ -9,6 +9,7 @@ const {
 } = require("../controllers/operators.controller");
 const {
   createOperatorValidation,
+  listOperatorsValidation,
   updateOperatorValidation,
   updateOperatorStatusValidation,
 } = require("../validators/operator.validators");
@@ -20,7 +21,7 @@ const operatorRouter = express.Router();
 operatorRouter.use(authGuard);
 
 operatorRouter.post("/", authorize("admin"), createOperatorValidation, validate, createOperatorHandler);
-operatorRouter.get("/", authorize("admin", "operator"), listOperatorsHandler);
+operatorRouter.get("/", authorize("admin", "operator"), listOperatorsValidation, validate, listOperatorsHandler);
 operatorRouter.get("/:id", authorize("admin", "operator"), getOperatorHandler);
 operatorRouter.patch("/:id/status", authorize("admin"), updateOperatorStatusValidation, validate, updateOperatorStatusHandler);
 operatorRouter.patch("/:id", authorize("admin"), updateOperatorValidation, validate, updateOperatorHandler);

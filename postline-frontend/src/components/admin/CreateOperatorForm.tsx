@@ -2,19 +2,13 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { Eye, EyeOff, UserPlus, X } from 'lucide-react';
 import { api } from '../../services/api';
 import type { Department, Operator, StaffRole } from '../../types/operators';
-
-const sanitizeEmail = (value: string) => {
-  const cleaned = value.toLowerCase().replace(/[^a-z0-9@._+-]/g, '');
-  const [localPart = '', ...domainParts] = cleaned.split('@');
-  const domainPart = domainParts.join('');
-  return domainParts.length ? `${localPart}@${domainPart}` : localPart;
-};
-
-const sanitizePhone = (value: string) => {
-  const cleaned = value.replace(/[^\d+]/g, '');
-  if (!cleaned.startsWith('+')) return `+${cleaned.replace(/\+/g, '')}`;
-  return `+${cleaned.slice(1).replace(/\+/g, '')}`;
-};
+import {
+  INPUT_LIMITS,
+  INPUT_PATTERNS,
+  sanitizeEmail,
+  sanitizeName,
+  sanitizeUaPhone,
+} from '../../utils/formUtils';
 
 interface CreateOperatorFormProps {
   operator?: Operator | null;
@@ -68,10 +62,10 @@ const CreateOperatorForm = ({
     };
   }, [providedDepartments]);
 
-  const isNameValid = fullName.trim().length >= 5;
-  const isEmailValid = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
-  const isPhoneValid = /^\+380\d{9}$/.test(phone);
-  const isPasswordValid = password.length >= 8;
+  const isNameValid = fullName.trim().length >= INPUT_LIMITS.nameMin && new RegExp(INPUT_PATTERNS.personName).test(fullName);
+  const isEmailValid = new RegExp(INPUT_PATTERNS.email).test(email);
+  const isPhoneValid = new RegExp(INPUT_PATTERNS.phone).test(phone);
+  const isPasswordValid = new RegExp(INPUT_PATTERNS.password).test(password);
   const isDeptValid = departmentId !== '';
 
   const handleSubmit = async (e: FormEvent) => {
@@ -145,13 +139,16 @@ const CreateOperatorForm = ({
           <input
             type="text"
             placeholder="Іванов Іван Іванович"
-            maxLength={100}
+            required
+            minLength={INPUT_LIMITS.nameMin}
+            maxLength={INPUT_LIMITS.nameMax}
+            pattern={INPUT_PATTERNS.personName}
             value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
+            onChange={(e) => setFullName(sanitizeName(e.target.value))}
             className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
           />
           <p className={`mt-1.5 ml-1 text-xs ${fullName.length > 0 && !isNameValid ? 'text-rose-500' : 'text-slate-400'}`}>
-            Мінімум 5 символів
+            Мінімум 2 символи, лише літери, пробіл, дефіс або апостроф.
           </p>
         </div>
 
@@ -160,7 +157,11 @@ const CreateOperatorForm = ({
           <input
             type="email"
             placeholder="operator@postline.com"
-            maxLength={100}
+            required={!isEditMode}
+            inputMode="email"
+            autoComplete="email"
+            maxLength={INPUT_LIMITS.emailMax}
+            pattern={INPUT_PATTERNS.email}
             value={email}
             disabled={isEditMode}
             onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
@@ -174,11 +175,15 @@ const CreateOperatorForm = ({
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5 ml-1">Телефон</label>
           <input
-            type="text"
+            type="tel"
             placeholder="+380XXXXXXXXX"
+            required
+            inputMode="numeric"
+            autoComplete="tel"
+            pattern={INPUT_PATTERNS.phone}
             maxLength={13}
             value={phone}
-            onChange={(e) => setPhone(sanitizePhone(e.target.value))}
+            onChange={(e) => setPhone(sanitizeUaPhone(e.target.value))}
             className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
           />
           <p className={`mt-1.5 ml-1 text-xs ${phone.length > 4 && !isPhoneValid ? 'text-rose-500' : 'text-slate-400'}`}>
@@ -209,6 +214,7 @@ const CreateOperatorForm = ({
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5 ml-1">Відділення</label>
           <select
+            required
             value={departmentId}
             onChange={(e) => setDepartmentId(e.target.value)}
             className={`w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all bg-white ${
@@ -231,8 +237,10 @@ const CreateOperatorForm = ({
               <input
                 type={isPasswordVisible ? 'text' : 'password'}
                 placeholder="••••••••"
-                minLength={8}
-                maxLength={64}
+                required
+                minLength={INPUT_LIMITS.passwordMin}
+                maxLength={INPUT_LIMITS.passwordMax}
+                pattern={INPUT_PATTERNS.password}
                 value={password}
                 onChange={(e) => setPassword(e.target.value.replace(/\s/g, ''))}
                 className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-pine/20 focus:border-pine outline-none transition-all placeholder:text-slate-300"
@@ -246,7 +254,7 @@ const CreateOperatorForm = ({
               </button>
             </div>
             <p className={`mt-1.5 ml-1 text-xs ${password.length > 0 && !isPasswordValid ? 'text-rose-500' : 'text-slate-400'}`}>
-              Мінімум 8 символів, без пробілів.
+              8-64 символи, велика і мала літера, цифра та спецсимвол.
             </p>
           </div>
         )}

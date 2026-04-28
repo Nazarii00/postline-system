@@ -1,12 +1,12 @@
 import { type JSX } from 'react';
 
 export type TariffPlan = {
+  type: string;
   title: string;
   icon: JSX.Element;
   price: string;
   description: string;
   features: string[];
-  popular?: boolean;
 };
 
 export interface Tariff {
@@ -17,6 +17,8 @@ export interface Tariff {
   size: string;
   basePrice: string | number;
   perKg: string | number;
+  courierBaseFee: string | number;
+  courierPerKg: string | number;
 }
 
 export interface BackendTariff {
@@ -33,6 +35,10 @@ export interface BackendTariff {
   base_price?: string | number;
   pricePerKg?: string | number;
   price_per_kg?: string | number;
+  courierBaseFee?: string | number;
+  courier_base_fee?: string | number;
+  courierFeePerKg?: string | number;
+  courier_fee_per_kg?: string | number;
 }
 
 export interface ApiResponse {
@@ -48,4 +54,6 @@ export interface BackendTariffRecord {
   size_category: string;
   base_price: string;
   price_per_kg: string;
+  courier_base_fee: string | null;
+  courier_fee_per_kg: string | null;
 }

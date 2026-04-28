@@ -23,13 +23,13 @@ const BranchesSection = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {branchesData.map((branch) => (
-            <div key={branch.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:border-pine/40 transition-colors cursor-pointer group">
+            <Link key={branch.id} to="/branches" className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:border-pine/40 transition-colors cursor-pointer group">
               <h3 className="font-semibold text-pine mb-3 group-hover:text-pine-light transition-colors">
                 {branch.name}
               </h3>
               <p className="text-sm text-slate-600 mb-1">{branch.address}</p>
               <p className="text-xs text-slate-400">{branch.schedule}</p>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

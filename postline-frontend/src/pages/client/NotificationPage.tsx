@@ -11,8 +11,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { Pagination } from '../../components/ui/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 
 const READ_NOTIFICATIONS_KEY = 'postline-read-notifications';
+const NOTIFICATIONS_UPDATED_EVENT = 'postline:notifications-updated';
+const NOTIFICATIONS_PER_PAGE = 8;
 
 type NotificationItem = {
   id: string;
@@ -56,7 +60,19 @@ const statusView: Record<string, { title: string; icon: LucideIcon; color: strin
     color: 'text-blue-600',
     bg: 'bg-blue-100',
   },
+  shipment_accepted: {
+    title: 'Відправлення прийнято',
+    icon: Package,
+    color: 'text-blue-600',
+    bg: 'bg-blue-100',
+  },
   sorting: {
+    title: 'Відправлення сортується',
+    icon: Clock,
+    color: 'text-amber-600',
+    bg: 'bg-amber-100',
+  },
+  shipment_sorting: {
     title: 'Відправлення сортується',
     icon: Clock,
     color: 'text-amber-600',
@@ -74,7 +90,19 @@ const statusView: Record<string, { title: string; icon: LucideIcon; color: strin
     color: 'text-indigo-600',
     bg: 'bg-indigo-100',
   },
+  shipment_in_transit: {
+    title: 'Відправлення в дорозі',
+    icon: Truck,
+    color: 'text-indigo-600',
+    bg: 'bg-indigo-100',
+  },
   arrived: {
+    title: 'Відправлення прибуло',
+    icon: MapPin,
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-100',
+  },
+  shipment_arrived: {
     title: 'Відправлення прибуло',
     icon: MapPin,
     color: 'text-emerald-600',
@@ -110,7 +138,19 @@ const statusView: Record<string, { title: string; icon: LucideIcon; color: strin
     color: 'text-rose-600',
     bg: 'bg-rose-100',
   },
+  courier_delivery_assigned: {
+    title: "Кур'єра призначено",
+    icon: Truck,
+    color: 'text-indigo-600',
+    bg: 'bg-indigo-100',
+  },
   returned: {
+    title: 'Відправлення повертається',
+    icon: XCircle,
+    color: 'text-rose-600',
+    bg: 'bg-rose-100',
+  },
+  shipment_returned: {
     title: 'Відправлення повертається',
     icon: XCircle,
     color: 'text-rose-600',
@@ -121,6 +161,18 @@ const statusView: Record<string, { title: string; icon: LucideIcon; color: strin
     icon: XCircle,
     color: 'text-rose-600',
     bg: 'bg-rose-100',
+  },
+  shipment_cancelled: {
+    title: 'Відправлення скасовано',
+    icon: XCircle,
+    color: 'text-rose-600',
+    bg: 'bg-rose-100',
+  },
+  shipment_status_updated: {
+    title: 'Оновлення відправлення',
+    icon: Bell,
+    color: 'text-slate-600',
+    bg: 'bg-slate-100',
   },
 };
 
@@ -142,6 +194,10 @@ const formatNotificationTime = (value: string) => {
     hour: '2-digit',
     minute: '2-digit',
   });
+};
+
+const notifyNotificationsChanged = () => {
+  window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
 };
 
 const NotificationsPage = () => {
@@ -190,12 +246,23 @@ const NotificationsPage = () => {
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
   [apiNotifications, readIds]);
+  const {
+    activePage,
+    endIndex,
+    pageNumbers,
+    paginatedItems: paginatedNotifications,
+    setCurrentPage,
+    startIndex,
+    totalItems,
+    totalPages,
+  } = usePagination(notifications, NOTIFICATIONS_PER_PAGE);
 
   const markAllAsRead = async () => {
     await api.patch('/notifications/read-all', {});
     setReadIds((prev) => Array.from(new Set([...prev, ...notifications.map((note) => note.id)])));
     const now = new Date().toISOString();
     setApiNotifications((prev) => prev.map((note) => ({ ...note, read_at: note.read_at || now })));
+    notifyNotificationsChanged();
   };
 
   const openNotification = async (note: NotificationItem) => {
@@ -205,6 +272,7 @@ const NotificationsPage = () => {
     setApiNotifications((prev) =>
       prev.map((item) => item.id === note.id ? { ...item, read_at: item.read_at || now } : item)
     );
+    notifyNotificationsChanged();
     navigate(`/client/shipment/${note.shipmentId}`);
   };
 
@@ -255,33 +323,46 @@ const NotificationsPage = () => {
             <p className="text-sm text-slate-500 mt-1">Коли з'являться відправлення, їхні оновлення будуть тут.</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {notifications.map((note) => (
-              <button
-                type="button"
-                key={note.id}
-                onClick={() => openNotification(note)}
-                className={`w-full text-left flex gap-4 p-4 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-200 ${
-                  note.isRead ? 'bg-white' : 'bg-slate-50/80'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${note.bg} ${note.color}`}>
-                  <note.icon size={18} />
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className={`text-sm ${note.isRead ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
-                      {note.title}
-                    </h3>
-                    <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap ml-4">{note.time}</span>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              {paginatedNotifications.map((note) => (
+                <button
+                  type="button"
+                  key={note.id}
+                  onClick={() => openNotification(note)}
+                  className={`w-full text-left flex gap-4 p-4 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-200 ${
+                    note.isRead ? 'bg-white' : 'bg-slate-50/80'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${note.bg} ${note.color}`}>
+                    <note.icon size={18} />
                   </div>
-                  <p className="text-[13px] text-slate-500 leading-relaxed">{note.message}</p>
-                </div>
-                {!note.isRead && (
-                  <div className="w-2 h-2 rounded-full bg-[#1a362d] mt-2 shrink-0" />
-                )}
-              </button>
-            ))}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start mb-1">
+                      <h3 className={`text-sm ${note.isRead ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
+                        {note.title}
+                      </h3>
+                      <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap ml-4">{note.time}</span>
+                    </div>
+                    <p className="text-[13px] text-slate-500 leading-relaxed">{note.message}</p>
+                  </div>
+                  {!note.isRead && (
+                    <div className="w-2 h-2 rounded-full bg-[#1a362d] mt-2 shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <Pagination
+              activePage={activePage}
+              endIndex={endIndex}
+              itemLabel="сповіщень"
+              onPageChange={setCurrentPage}
+              pageNumbers={pageNumbers}
+              startIndex={startIndex}
+              totalItems={totalItems}
+              totalPages={totalPages}
+            />
           </div>
         )}
       </div>

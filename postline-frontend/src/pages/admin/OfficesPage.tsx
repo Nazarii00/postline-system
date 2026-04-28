@@ -1,10 +1,26 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import { api } from '../../services/api';
+import { Pagination } from '../../components/ui/Pagination';
 import type { Department } from '../../types/departments';
 import OfficeCard from '../../components/admin/offices/OfficeCard';
 import CreateOfficeModal from '../../components/admin/offices/CreateOfficeModal';
+import OfficeDetailsModal from '../../components/admin/offices/OfficeDetailsModal';
 import OfficesFilter from '../../components/admin/offices/OfficesFilter';
+import { usePagination } from '../../hooks/usePagination';
+
+const OFFICES_PER_PAGE = 9;
+
+const filterDepartments = (departments: Department[], searchTerm: string) => {
+  if (!searchTerm) return departments;
+
+  const lower = searchTerm.toLowerCase();
+  return departments.filter(
+    (department) =>
+      department.city.toLowerCase().includes(lower) ||
+      department.address.toLowerCase().includes(lower)
+  );
+};
 
 const OfficesPage = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -12,6 +28,21 @@ const OfficesPage = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [detailsDepartment, setDetailsDepartment] = useState<Department | null>(null);
+  const displayed = useMemo(
+    () => filterDepartments(departments, searchTerm),
+    [departments, searchTerm]
+  );
+  const {
+    activePage,
+    endIndex,
+    pageNumbers,
+    paginatedItems: paginatedDepartments,
+    setCurrentPage,
+    startIndex,
+    totalItems,
+    totalPages,
+  } = usePagination(displayed, OFFICES_PER_PAGE);
 
   const fetchDepartments = useCallback(async () => {
     setIsLoading(true);
@@ -19,35 +50,36 @@ const OfficesPage = () => {
     try {
       const res = await api.get<{ data: Department[] }>('/departments');
       setDepartments(res.data);
+      setCurrentPage(1);
     } catch {
       setError('Не вдалося завантажити відділення');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setCurrentPage]);
 
   useEffect(() => {
     void fetchDepartments();
   }, [fetchDepartments]);
 
-  const displayed = useMemo(() => {
-    if (!searchTerm) return departments;
-    const lower = searchTerm.toLowerCase();
-    return departments.filter(
-      (department) =>
-        department.city.toLowerCase().includes(lower) ||
-        department.address.toLowerCase().includes(lower)
-    );
-  }, [departments, searchTerm]);
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('Деактивувати відділення?')) return;
 
     try {
       await api.delete(`/departments/${id}`);
-      setDepartments((prev) => prev.filter((department) => department.id !== id));
+      const nextDepartments = departments.filter((department) => department.id !== id);
+      const nextDisplayed = filterDepartments(nextDepartments, searchTerm);
+      const nextTotalPages = Math.ceil(nextDisplayed.length / OFFICES_PER_PAGE);
+
+      setDepartments(nextDepartments);
+      setCurrentPage(Math.min(activePage, Math.max(1, nextTotalPages)));
     } catch {
-      setError('Помилка при видаленні відділення');
+      setError('Помилка при деактивації відділення');
     }
   };
 
@@ -77,7 +109,7 @@ const OfficesPage = () => {
           </div>
         )}
 
-        <OfficesFilter value={searchTerm} onChange={setSearchTerm} />
+        <OfficesFilter value={searchTerm} onChange={handleSearchChange} />
 
         {isLoading ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 text-sm text-slate-500 text-center">
@@ -88,10 +120,28 @@ const OfficesPage = () => {
             Відділень не знайдено.
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-            {displayed.map((department) => (
-              <OfficeCard key={department.id} department={department} onDelete={handleDelete} />
-            ))}
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+              {paginatedDepartments.map((department) => (
+                <OfficeCard
+                  key={department.id}
+                  department={department}
+                  onDetails={setDetailsDepartment}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+
+            <Pagination
+              activePage={activePage}
+              endIndex={endIndex}
+              itemLabel="відділень"
+              onPageChange={setCurrentPage}
+              pageNumbers={pageNumbers}
+              startIndex={startIndex}
+              totalItems={totalItems}
+              totalPages={totalPages}
+            />
           </div>
         )}
       </section>
@@ -103,6 +153,13 @@ const OfficesPage = () => {
             setIsFormOpen(false);
             void fetchDepartments();
           }}
+        />
+      )}
+
+      {detailsDepartment && (
+        <OfficeDetailsModal
+          department={detailsDepartment}
+          onClose={() => setDetailsDepartment(null)}
         />
       )}
     </main>

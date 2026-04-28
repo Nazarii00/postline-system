@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Phone } from 'lucide-react';
 import { type ShipmentFormData, type Department } from '../../types/shipment';
 import { ErrorMsg } from '../../components/ui/ErrorMsg';
-import { getFieldClass, labelClass } from '../../utils/formUtils';
+import { getFieldClass, INPUT_LIMITS, INPUT_PATTERNS, labelClass } from '../../utils/formUtils';
 
 interface Props {
   title: string;
@@ -50,6 +50,9 @@ export const ContactSection = ({
               value={formData[phoneKey]}
               onChange={onChange}
               placeholder="+380..."
+              required
+              inputMode="numeric"
+              pattern={INPUT_PATTERNS.phone}
               maxLength={13}
               className={getFieldClass(phoneKey, errors, 'pl-12')}
             />
@@ -65,7 +68,10 @@ export const ContactSection = ({
             value={formData[fullNameKey]}
             onChange={onChange}
             placeholder="Прізвище Ім'я По батькові"
-            maxLength={100}
+            required
+            minLength={INPUT_LIMITS.nameMin}
+            maxLength={INPUT_LIMITS.nameMax}
+            pattern={INPUT_PATTERNS.personName}
             className={getFieldClass(fullNameKey, errors)}
           />
           <ErrorMsg field={fullNameKey} errors={errors} />
@@ -80,6 +86,7 @@ export const ContactSection = ({
               onChange={onChange}
               className={getFieldClass(cityKey, errors)}
               disabled={isLocationLocked}
+              required
             >
               <option value="">Оберіть місто...</option>
               {cities.map((city) => (
@@ -97,6 +104,7 @@ export const ContactSection = ({
               onChange={onChange}
               className={getFieldClass(branchKey, errors)}
               disabled={isLocationLocked || departments.length === 0}
+              required
             >
               <option value="">Оберіть...</option>
               {departments.map((d) => (

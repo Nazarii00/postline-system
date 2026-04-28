@@ -75,8 +75,8 @@ const deleteRouteHandler = async (req, res, next) => {
       return res.status(404).json({ message: "Маршрут не знайдено" });
     }
 
-    await deleteRoute(id);
-    return res.status(200).json({ message: "Маршрут успішно видалено" });
+    const updated = await deleteRoute(id);
+    return res.status(200).json({ data: updated, message: "Маршрут успішно деактивовано" });
   } catch (error) {
     return next(error);
   }

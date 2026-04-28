@@ -1,56 +1,95 @@
 const { body } = require("express-validator");
+const {
+  LIMITS,
+  PATTERNS,
+  optionalBooleanQuery,
+  optionalDateQuery,
+  optionalEnumQuery,
+  optionalFloatBody,
+  optionalIdQuery,
+  optionalTextBody,
+  optionalTextQuery,
+  optionalTrackingQuery,
+  phoneBody,
+  requiredEnumBody,
+  requiredFloatBody,
+  requiredIdBody,
+  requiredTextBody,
+} = require("./common.validators");
 
-// shipment.validators.js
+const shipmentStatuses = [
+  "sorting",
+  "in_transit",
+  "arrived",
+  "ready_for_pickup",
+  "delivered",
+  "returned",
+];
+
+const nameRule = (field, label) =>
+  requiredTextBody(field, label, {
+    min: LIMITS.nameMin,
+    max: LIMITS.nameMax,
+    pattern: PATTERNS.personName,
+    patternMessage: `${label} може містити лише літери, пробіли, апостроф та дефіс`,
+  });
+
 const createShipmentValidation = [
-  body("senderPhone")
-    .notEmpty().withMessage("Телефон відправника є обов'язковим")
-    .matches(/^\+380\d{9}$/).withMessage("Формат: +380XXXXXXXXX"),
-
-  body("senderName")
-    .trim().notEmpty().withMessage("Ім'я відправника є обов'язковим")
-    .isLength({ min: 2, max: 100 }),
-
-  body("receiverPhone")
-    .notEmpty().withMessage("Телефон одержувача є обов'язковим")
-    .matches(/^\+380\d{9}$/).withMessage("Формат: +380XXXXXXXXX"),
-
-  body("receiverName")
-    .trim().notEmpty().withMessage("Ім'я одержувача є обов'язковим")
-    .isLength({ min: 2, max: 100 }),
-
-  body("originDeptId").notEmpty().isInt().withMessage("ID відділення відправки має бути числом"),
-  body("destDeptId").notEmpty().isInt().withMessage("ID відділення призначення має бути числом"),
-  body("tariffId").notEmpty().isInt().withMessage("ID тарифу має бути числом"),
-
-  body("shipmentType")
-    .notEmpty()
-    .isIn(["letter", "parcel", "package"])
-    .withMessage("Тип має бути: letter, parcel або package"),
-
-  body("sizeCategory")
-    .notEmpty()
-    .isIn(["S", "M", "L", "XL"])
-    .withMessage("Розмір має бути: S, M, L або XL"),
-
-  body("weightKg").notEmpty().isFloat({ min: 0.1 }).withMessage("Вага має бути більшою за 0"),
-  body("lengthCm").notEmpty().isFloat({ min: 0.1 }),
-  body("widthCm").notEmpty().isFloat({ min: 0.1 }),
-  body("heightCm").notEmpty().isFloat({ min: 0.1 }),
-
-  body("declaredValue").optional().isFloat({ min: 0 }),
-  body("description").optional().trim().isLength({ max: 500 }),
-  body("receiverAddress").optional().trim().isLength({ max: 200 }).withMessage("Адреса доставки має містити до 200 символів"),
-  body("isCourier").optional().isBoolean(),
+  phoneBody("senderPhone", "Телефон відправника"),
+  nameRule("senderName", "Ім'я відправника"),
+  phoneBody("receiverPhone", "Телефон одержувача"),
+  nameRule("receiverName", "Ім'я одержувача"),
+  requiredIdBody("originDeptId", "ID відділення відправки"),
+  requiredIdBody("destDeptId", "ID відділення призначення"),
+  requiredIdBody("tariffId", "ID тарифу"),
+  requiredEnumBody("shipmentType", "Тип відправлення", ["letter", "parcel", "package"]),
+  requiredEnumBody("sizeCategory", "Розмір", ["S", "M", "L", "XL"]),
+  requiredFloatBody("weightKg", "Вага", { min: LIMITS.weightMin, max: LIMITS.weightMax }),
+  requiredFloatBody("lengthCm", "Довжина", { min: LIMITS.dimensionMin, max: LIMITS.dimensionMax }),
+  requiredFloatBody("widthCm", "Ширина", { min: LIMITS.dimensionMin, max: LIMITS.dimensionMax }),
+  requiredFloatBody("heightCm", "Висота", { min: LIMITS.dimensionMin, max: LIMITS.dimensionMax }),
+  optionalFloatBody("declaredValue", "Оголошена вартість", { min: 0, max: LIMITS.moneyMax }),
+  optionalTextBody("description", "Опис", { max: LIMITS.noteMax }),
+  optionalTextBody("receiverAddress", "Адреса доставки", {
+    min: LIMITS.addressMin,
+    max: LIMITS.addressMax,
+  }),
+  body("isCourier").optional().isBoolean().withMessage("isCourier має бути true або false").toBoolean(),
 ];
 
 const changeStatusValidation = [
-  body("status")
-    .notEmpty().withMessage("Статус є обов'язковим")
-    .isIn(["sorting", "in_transit", "arrived", "ready_for_pickup", "delivered", "returned"])
-    .withMessage("Недозволений статус"),
-
-  body("notes")
-    .optional().trim().isLength({ max: 500 }).withMessage("Максимум 500 символів"),
+  requiredEnumBody("status", "Статус", shipmentStatuses),
+  optionalTextBody("notes", "Примітки", { max: LIMITS.noteMax }),
 ];
 
-module.exports = { createShipmentValidation, changeStatusValidation };
+const listShipmentsValidation = [
+  optionalBooleanQuery("courierOnly", "courierOnly"),
+  optionalIdQuery("departmentId", "ID відділення"),
+  optionalEnumQuery("status", "Статус", [
+    "accepted",
+    ...shipmentStatuses,
+    "cancelled",
+  ]),
+  optionalTrackingQuery("trackingNumber", "Трекінг-номер"),
+  optionalTextQuery("clientName", "Ім'я клієнта", {
+    max: LIMITS.nameMax,
+    pattern: PATTERNS.personName,
+  }),
+  optionalTextQuery("search", "Пошук", { max: LIMITS.nameMax }),
+  optionalDateQuery("dateFrom", "Дата від"),
+  optionalDateQuery("dateTo", "Дата до"),
+  optionalEnumQuery("sortBy", "Поле сортування", [
+    "created_at",
+    "tracking_number",
+    "status",
+    "total_cost",
+    "weight_kg",
+  ]),
+  optionalEnumQuery("sortOrder", "Напрям сортування", ["asc", "desc"]),
+];
+
+module.exports = {
+  createShipmentValidation,
+  changeStatusValidation,
+  listShipmentsValidation,
+};

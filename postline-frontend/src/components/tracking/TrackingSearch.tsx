@@ -1,4 +1,5 @@
 import { Search, Loader2 } from 'lucide-react';
+import { INPUT_LIMITS, INPUT_PATTERNS, sanitizeTrackingNumber } from '../../utils/formUtils';
 
 interface Props {
   searchQuery: string;
@@ -24,7 +25,11 @@ export const TrackingSearch = ({ searchQuery, isLoading, onSearchChange, onSubmi
           placeholder="Наприклад: PL-2024-00128"
           className="w-full pl-14 pr-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine focus:ring-2 focus:ring-pine/20 transition-all text-lg font-medium text-slate-800"
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => onSearchChange(sanitizeTrackingNumber(e.target.value))}
+          required
+          minLength={INPUT_LIMITS.trackingMin}
+          maxLength={INPUT_LIMITS.trackingMax}
+          pattern={INPUT_PATTERNS.trackingNumber}
           disabled={isLoading}
         />
       </div>

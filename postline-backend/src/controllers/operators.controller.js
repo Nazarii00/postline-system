@@ -12,6 +12,11 @@ const {
 
 const isStaffAccount = (user) => ["operator", "courier"].includes(user.role);
 
+const getActorDepartmentId = async (userId) => {
+  const actor = await getUserById(userId);
+  return actor?.department_id ? Number(actor.department_id) : null;
+};
+
 const createOperatorHandler = async (req, res, next) => {
   try {
     const { fullName, email, phone, departmentId, role, password } = req.body;
@@ -40,9 +45,16 @@ const getOperatorHandler = async (req, res, next) => {
   try {
     const { id } = req.params;
     const operator = await getUserById(id);
-    if (!operator) {
+    if (!operator || !isStaffAccount(operator)) {
       return res.status(404).json({ message: "Оператора не знайдено" });
     }
+    if (req.user.role === "operator") {
+      const actorDepartmentId = await getActorDepartmentId(req.user.sub);
+      if (!actorDepartmentId || Number(operator.department_id) !== actorDepartmentId) {
+        return res.status(403).json({ message: "Працівник не належить вашому відділенню" });
+      }
+    }
+
     return res.status(200).json({ data: operator });
   } catch (error) {
     return next(error);
@@ -53,9 +65,21 @@ const listOperatorsHandler = async (req, res, next) => {
   try {
     const { departmentId } = req.query;
     const includeInactive = req.user.role === "admin" && req.query.includeInactive !== "false";
-    const operators = departmentId
-      ? await getOperatorsByDepartment(departmentId, includeInactive)
-      : await getAllOperators(includeInactive);
+    let operators;
+
+    if (req.user.role === "operator") {
+      const actorDepartmentId = await getActorDepartmentId(req.user.sub);
+      if (!actorDepartmentId) {
+        return res.status(400).json({ message: "Оператору не призначено відділення" });
+      }
+
+      operators = await getOperatorsByDepartment(actorDepartmentId, includeInactive);
+    } else {
+      operators = departmentId
+        ? await getOperatorsByDepartment(departmentId, includeInactive)
+        : await getAllOperators(includeInactive);
+    }
+
     return res.status(200).json({ data: operators });
   } catch (error) {
     return next(error);

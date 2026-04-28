@@ -2,7 +2,12 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronUp, ChevronDown, ArrowUpDown, Filter } from 'lucide-react';
 import { api } from '../../services/api';
+import { Pagination } from '../../components/ui/Pagination';
+import { usePagination } from '../../hooks/usePagination';
 import type { Shipment } from '../../types/shipment';
+import { INPUT_LIMITS, sanitizePlainText } from '../../utils/formUtils';
+
+const SHIPMENTS_PER_PAGE = 10;
 
 const STATUS_LABELS: Record<string, string> = {
   accepted: 'Прийнято',
@@ -86,6 +91,7 @@ const ClientDashboard = () => {
   }, [searchTerm, statusFilter, sortConfig]);
 
   const handleSort = (key: keyof Shipment) => {
+    setCurrentPage(1);
     setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
@@ -126,6 +132,16 @@ const ClientDashboard = () => {
 
     return result;
   }, [shipments, searchTerm, statusFilter, sortConfig]);
+  const {
+    activePage,
+    endIndex,
+    pageNumbers,
+    paginatedItems: paginatedShipments,
+    setCurrentPage,
+    startIndex,
+    totalItems,
+    totalPages,
+  } = usePagination(filteredAndSorted, SHIPMENTS_PER_PAGE);
 
   return (
     <div className="max-w-7xl mx-auto w-full space-y-8">
@@ -146,7 +162,11 @@ const ClientDashboard = () => {
             placeholder="Пошук за номером або ПІБ..."
             className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pine/20 focus:border-pine focus:bg-white transition-all text-sm font-medium"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(sanitizePlainText(e.target.value, INPUT_LIMITS.nameMax));
+              setCurrentPage(1);
+            }}
+            maxLength={INPUT_LIMITS.nameMax}
           />
         </div>
 
@@ -155,7 +175,10 @@ const ClientDashboard = () => {
           <select
             className="w-full pl-11 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine focus:bg-white text-slate-600 font-medium cursor-pointer transition-all appearance-none text-sm"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
           >
             <option value="all">Всі статуси</option>
             <option value="accepted">Прийнято</option>
@@ -203,7 +226,7 @@ const ClientDashboard = () => {
               </thead>
               <tbody>
                 {filteredAndSorted.length > 0 ? (
-                  filteredAndSorted.map((shipment) => (
+                  paginatedShipments.map((shipment) => (
                     <tr
                       key={shipment.id}
                       onClick={() => navigate(`/client/shipment/${shipment.id}`)}
@@ -234,6 +257,20 @@ const ClientDashboard = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+        {!isLoading && !error && filteredAndSorted.length > 0 && (
+          <div className="px-6 py-5 bg-slate-50/50 border-t border-slate-100">
+            <Pagination
+              activePage={activePage}
+              endIndex={endIndex}
+              itemLabel="відправлень"
+              onPageChange={setCurrentPage}
+              pageNumbers={pageNumbers}
+              startIndex={startIndex}
+              totalItems={totalItems}
+              totalPages={totalPages}
+            />
           </div>
         )}
       </div>

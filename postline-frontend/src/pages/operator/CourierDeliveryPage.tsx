@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, MapPin, Phone, RefreshCcw, Route, UserCheck, X } from 'lucide-react';
+import { CheckCircle, CheckSquare, ChevronDown, ChevronUp, MapPin, Phone, RefreshCcw, Route, UserCheck, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { OptimizedRouteMap } from '../../components/OptimizedRouteMap';
+import { Pagination } from '../../components/ui/Pagination';
 import {
   confirmCourierRoute,
   optimizeCourierRoute,
@@ -10,9 +11,13 @@ import {
   type OptimizedRouteResult,
 } from '../../services/routeOptimizationService';
 import type { Courier, CourierDelivery, ReadyForCourierShipment } from '../../types/courier';
+import { usePagination } from '../../hooks/usePagination';
+import { INPUT_LIMITS, sanitizeAddress } from '../../utils/formUtils';
 
 const formatDistanceKm = (meters: number) => (meters / 1000).toFixed(2);
 const formatDurationMinutes = (seconds: number) => Math.max(1, Math.round(seconds / 60));
+const MAX_ROUTE_DELIVERIES = 10;
+const COURIER_PAGE_SIZE = 6;
 
 const isCourierShipmentAssignable = (shipment: ReadyForCourierShipment) =>
   shipment.status === 'ready_for_pickup'
@@ -67,6 +72,26 @@ const CourierDeliveryPage = () => {
   const [isConfirmingRoute, setIsConfirmingRoute] = useState(false);
   const [routeError, setRouteError] = useState('');
   const [routeSuccess, setRouteSuccess] = useState('');
+  const {
+    activePage: activeShipmentsPage,
+    endIndex: shipmentsEndIndex,
+    pageNumbers: shipmentsPageNumbers,
+    paginatedItems: paginatedAssignableShipments,
+    setCurrentPage: setShipmentsPage,
+    startIndex: shipmentsStartIndex,
+    totalItems: totalAssignableShipments,
+    totalPages: totalShipmentsPages,
+  } = usePagination(shipments, COURIER_PAGE_SIZE);
+  const {
+    activePage: activeDeliveriesPage,
+    endIndex: deliveriesEndIndex,
+    pageNumbers: deliveriesPageNumbers,
+    paginatedItems: paginatedDeliveries,
+    setCurrentPage: setDeliveriesPage,
+    startIndex: deliveriesStartIndex,
+    totalItems: totalActiveDeliveries,
+    totalPages: totalDeliveriesPages,
+  } = usePagination(deliveries, COURIER_PAGE_SIZE);
 
   const routeCourierNumber = routeCourierId ? Number(routeCourierId) : null;
   const selectedCourierDeliveries = useMemo(
@@ -74,6 +99,21 @@ const CourierDeliveryPage = () => {
       ? deliveries.filter((delivery) => Number(delivery.courier_id) === routeCourierNumber)
       : [],
     [deliveries, routeCourierNumber]
+  );
+  const selectedDeliveryIdSet = useMemo(
+    () => new Set(selectedDeliveryIds),
+    [selectedDeliveryIds]
+  );
+  const selectableCourierDeliveries = useMemo(
+    () => selectedCourierDeliveries.filter((delivery) => Boolean(delivery.courier_id)),
+    [selectedCourierDeliveries]
+  );
+  const hasSelectedDeliveries = selectedDeliveryIds.length > 0;
+  const canOptimizeRoute = Boolean(
+    routeCourierNumber
+    && startAddress.trim()
+    && selectedDeliveryIds.length >= 2
+    && selectedDeliveryIds.length <= MAX_ROUTE_DELIVERIES
   );
 
   const loadDeliveries = async () => {
@@ -127,6 +167,7 @@ const CourierDeliveryPage = () => {
 
   const toggleDeliverySelection = (delivery: CourierDelivery) => {
     const deliveryCourierId = delivery.courier_id ? Number(delivery.courier_id) : null;
+    const isSelected = selectedDeliveryIdSet.has(delivery.id);
 
     if (!deliveryCourierId) {
       setRouteError("Спершу призначте цю доставку кур'єру");
@@ -135,6 +176,11 @@ const CourierDeliveryPage = () => {
 
     if (routeCourierNumber && deliveryCourierId !== routeCourierNumber) {
       setRouteError("Для одного маршруту можна обрати доставки тільки одного кур'єра");
+      return;
+    }
+
+    if (!isSelected && selectedDeliveryIds.length >= MAX_ROUTE_DELIVERIES) {
+      setRouteError(`Можна оптимізувати не більше ${MAX_ROUTE_DELIVERIES} доставок за раз`);
       return;
     }
 
@@ -153,6 +199,39 @@ const CourierDeliveryPage = () => {
     );
   };
 
+  const handleToggleAllCourierDeliveries = () => {
+    setRouteSuccess('');
+    setOptimizedRoute(null);
+    setRouteStops([]);
+
+    if (!routeCourierNumber) {
+      setRouteError("Оберіть кур'єра для маршруту");
+      return;
+    }
+
+    if (selectableCourierDeliveries.length === 0) {
+      setRouteError("У цього кур'єра немає призначених доставок");
+      return;
+    }
+
+    if (hasSelectedDeliveries) {
+      setSelectedDeliveryIds([]);
+      setRouteError('');
+      return;
+    }
+
+    const nextDeliveryIds = selectableCourierDeliveries
+      .slice(0, MAX_ROUTE_DELIVERIES)
+      .map((delivery) => delivery.id);
+
+    setSelectedDeliveryIds(nextDeliveryIds);
+    setRouteError(
+      selectableCourierDeliveries.length > MAX_ROUTE_DELIVERIES
+        ? `Можна оптимізувати не більше ${MAX_ROUTE_DELIVERIES} доставок за раз. Обрано перші ${MAX_ROUTE_DELIVERIES}.`
+        : ''
+    );
+  };
+
   const handleOptimizeRoute = async () => {
     setRouteError('');
     setRouteSuccess('');
@@ -164,13 +243,18 @@ const CourierDeliveryPage = () => {
       return;
     }
 
-    if (!startAddress.trim()) {
+    if (!startAddress.trim() || startAddress.trim().length < INPUT_LIMITS.addressMin) {
       setRouteError('Вкажіть стартову адресу');
       return;
     }
 
     if (selectedDeliveryIds.length < 2) {
       setRouteError('Оберіть щонайменше 2 доставки');
+      return;
+    }
+
+    if (selectedDeliveryIds.length > MAX_ROUTE_DELIVERIES) {
+      setRouteError(`Можна оптимізувати не більше ${MAX_ROUTE_DELIVERIES} доставок за раз`);
       return;
     }
 
@@ -232,6 +316,9 @@ const CourierDeliveryPage = () => {
 
       setRouteSuccess(`${response.message}. № маршруту: ${response.data.id}`);
       await loadDeliveries();
+      setSelectedDeliveryIds([]);
+      setOptimizedRoute(null);
+      setRouteStops([]);
     } catch (err) {
       setRouteError(err instanceof Error ? err.message : 'Не вдалося підтвердити маршрут');
     } finally {
@@ -240,7 +327,7 @@ const CourierDeliveryPage = () => {
   };
 
   const handleAssign = async () => {
-    if (!assigningShipment || !selectedCourier || !toAddress) return;
+    if (!assigningShipment || !selectedCourier || !toAddress || toAddress.trim().length < INPUT_LIMITS.addressMin) return;
     setIsSubmitting(true);
 
     try {
@@ -284,11 +371,21 @@ const CourierDeliveryPage = () => {
     }
   };
 
-  const canSelectDelivery = (delivery: CourierDelivery) =>
-    Boolean(
-      delivery.courier_id
-      && (!routeCourierNumber || Number(delivery.courier_id) === routeCourierNumber)
-    );
+  const getDeliverySelectionBlockReason = (delivery: CourierDelivery) => {
+    if (!delivery.courier_id) {
+      return "Спершу призначте кур'єра";
+    }
+
+    if (routeCourierNumber && Number(delivery.courier_id) !== routeCourierNumber) {
+      return "Ця доставка призначена іншому кур'єру";
+    }
+
+    if (!selectedDeliveryIdSet.has(delivery.id) && selectedDeliveryIds.length >= MAX_ROUTE_DELIVERIES) {
+      return `Ліміт маршруту: ${MAX_ROUTE_DELIVERIES} доставок`;
+    }
+
+    return '';
+  };
 
   return (
     <div className="max-w-6xl mx-auto w-full space-y-8 pb-8">
@@ -323,7 +420,7 @@ const CourierDeliveryPage = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {shipments.map((shipment) => {
+              {paginatedAssignableShipments.map((shipment) => {
                 const isAssignable = isCourierShipmentAssignable(shipment);
                 const readiness = getCourierShipmentReadiness(shipment);
 
@@ -382,6 +479,16 @@ const CourierDeliveryPage = () => {
                   </div>
                 );
               })}
+              <Pagination
+                activePage={activeShipmentsPage}
+                endIndex={shipmentsEndIndex}
+                itemLabel="відправлень"
+                onPageChange={setShipmentsPage}
+                pageNumbers={shipmentsPageNumbers}
+                startIndex={shipmentsStartIndex}
+                totalItems={totalAssignableShipments}
+                totalPages={totalShipmentsPages}
+              />
             </div>
           )}
         </div>
@@ -397,7 +504,7 @@ const CourierDeliveryPage = () => {
               <div>
                 <h2 className="text-xl font-black text-slate-900">Оптимізація маршруту</h2>
                 <p className="text-sm text-slate-500">
-                  Оберіть assigned-доставки одного кур'єра та отримайте порядок з Mapbox.
+                  Оберіть призначені доставки одного кур'єра та отримайте оптимальний порядок.
                 </p>
               </div>
             </div>
@@ -408,6 +515,7 @@ const CourierDeliveryPage = () => {
               <select
                 value={routeCourierId}
                 onChange={(event) => handleRouteCourierChange(event.target.value)}
+                required
                 className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
               >
                 <option value="">Оберіть кур'єра...</option>
@@ -427,12 +535,15 @@ const CourierDeliveryPage = () => {
               type="text"
               value={startAddress}
               onChange={(event) => {
-                setStartAddress(event.target.value);
+                setStartAddress(sanitizeAddress(event.target.value));
                 setOptimizedRoute(null);
                 setRouteStops([]);
                 setRouteSuccess('');
               }}
               placeholder="Стартова адреса, наприклад: Львів, вул. Городоцька 10"
+              required
+              minLength={INPUT_LIMITS.addressMin}
+              maxLength={INPUT_LIMITS.addressMax}
               className="md:col-span-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
             />
           </div>
@@ -440,20 +551,31 @@ const CourierDeliveryPage = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
           <p className="text-sm text-slate-500">
-            Обрано: <span className="font-black text-pine">{selectedDeliveryIds.length}</span>
+            Обрано: <span className="font-black text-pine">{selectedDeliveryIds.length}/{MAX_ROUTE_DELIVERIES}</span>
             {routeCourierNumber && (
-              <span> · assigned у кур'єра: {selectedCourierDeliveries.length}</span>
+              <span> · призначених у кур'єра: {selectedCourierDeliveries.length}</span>
             )}
           </p>
-          <button
-            type="button"
-            onClick={handleOptimizeRoute}
-            disabled={isOptimizing}
-            className="px-6 py-3 bg-pine text-white rounded-2xl font-black text-sm hover:bg-pine/90 transition-all disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2"
-          >
-            {isOptimizing ? <RefreshCcw size={18} className="animate-spin" /> : <Route size={18} />}
-            {isOptimizing ? 'Оптимізація...' : 'Оптимізувати маршрут'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={handleToggleAllCourierDeliveries}
+              disabled={!routeCourierNumber || selectableCourierDeliveries.length === 0}
+              className="px-5 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {hasSelectedDeliveries ? <X size={18} /> : <CheckSquare size={18} />}
+              {hasSelectedDeliveries ? 'Очистити вибір' : 'Обрати доставки'}
+            </button>
+            <button
+              type="button"
+              onClick={handleOptimizeRoute}
+              disabled={isOptimizing || !canOptimizeRoute}
+              className="px-6 py-3 bg-pine text-white rounded-2xl font-black text-sm hover:bg-pine/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isOptimizing ? <RefreshCcw size={18} className="animate-spin" /> : <Route size={18} />}
+              {isOptimizing ? 'Оптимізація...' : 'Оптимізувати маршрут'}
+            </button>
+          </div>
         </div>
 
         {routeError && (
@@ -550,9 +672,10 @@ const CourierDeliveryPage = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {deliveries.map((delivery) => {
-              const isSelectable = canSelectDelivery(delivery);
-              const isSelected = selectedDeliveryIds.includes(delivery.id);
+            {paginatedDeliveries.map((delivery) => {
+              const selectionBlockReason = getDeliverySelectionBlockReason(delivery);
+              const isSelectable = !selectionBlockReason;
+              const isSelected = selectedDeliveryIdSet.has(delivery.id);
 
               return (
                 <div
@@ -591,9 +714,7 @@ const CourierDeliveryPage = () => {
                       )}
                       {!isSelectable && (
                         <p className="text-xs text-slate-500 mt-2 font-medium">
-                          {delivery.courier_id
-                            ? "Ця доставка призначена іншому кур'єру"
-                            : "Спершу призначте кур'єра"}
+                          {selectionBlockReason}
                         </p>
                       )}
                     </div>
@@ -616,6 +737,16 @@ const CourierDeliveryPage = () => {
                 </div>
               );
             })}
+            <Pagination
+              activePage={activeDeliveriesPage}
+              endIndex={deliveriesEndIndex}
+              itemLabel="доставок"
+              onPageChange={setDeliveriesPage}
+              pageNumbers={deliveriesPageNumbers}
+              startIndex={deliveriesStartIndex}
+              totalItems={totalActiveDeliveries}
+              totalPages={totalDeliveriesPages}
+            />
           </div>
         )}
       </div>
@@ -647,6 +778,7 @@ const CourierDeliveryPage = () => {
                 <select
                   value={selectedCourier}
                   onChange={(e) => setSelectedCourier(e.target.value)}
+                  required
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
                 >
                   <option value="">Оберіть кур'єра...</option>
@@ -663,8 +795,11 @@ const CourierDeliveryPage = () => {
                 <input
                   type="text"
                   value={toAddress}
-                  onChange={(e) => setToAddress(e.target.value)}
+                  onChange={(e) => setToAddress(sanitizeAddress(e.target.value))}
                   placeholder="вул. Шевченка 1, кв. 5"
+                  required
+                  minLength={INPUT_LIMITS.addressMin}
+                  maxLength={INPUT_LIMITS.addressMax}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-pine text-sm font-medium"
                 />
               </div>

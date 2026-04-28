@@ -11,6 +11,7 @@ interface AuthState {
 }
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
+const AUTH_EXPIRED_ERROR = 'AUTH_EXPIRED'
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -46,15 +47,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         headers: { Authorization: `Bearer ${token}` },
       })
 
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(AUTH_EXPIRED_ERROR)
+      }
+
       if (!res.ok) {
-        throw new Error('Unauthorized')
+        throw new Error('Profile unavailable')
       }
 
       const data = await res.json() as { user: User }
       localStorage.setItem('user', JSON.stringify(data.user))
       set({ user: data.user, token, isHydrated: true })
-    } catch {
-      if (cachedUser) {
+    } catch (error) {
+      const isAuthExpired = error instanceof Error && error.message === AUTH_EXPIRED_ERROR
+
+      if (cachedUser && !isAuthExpired) {
         return
       }
 

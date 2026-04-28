@@ -12,9 +12,14 @@ const fetchDeliveriesForRoute = (deliveryIds) =>
             cd.shipment_id,
             s.tracking_number,
             s.current_dept_id,
-            s.dest_dept_id
+            s.dest_dept_id,
+            dest_dept.city AS dest_city,
+            courier_dept.city AS courier_city
      FROM courier_deliveries cd
      JOIN shipments s ON s.id = cd.shipment_id
+     JOIN departments dest_dept ON dest_dept.id = s.dest_dept_id
+     JOIN users courier ON courier.id = cd.courier_id
+     LEFT JOIN departments courier_dept ON courier_dept.id = courier.department_id
      WHERE cd.id = ANY($1::int[])`,
     [deliveryIds]
   );
@@ -44,7 +49,7 @@ const createConfirmedCourierRoute = ({
 
       const { rows: [updatedDelivery] } = await client.query(
         `UPDATE courier_deliveries
-         SET notes = CONCAT_WS(E'\n', NULLIF(notes, ''), $2)
+         SET notes = CONCAT_WS(E'\n', NULLIF(notes, ''), $2::text)
          WHERE id = $1
          RETURNING id, shipment_id, to_address, notes`,
         [stop.deliveryId, note]

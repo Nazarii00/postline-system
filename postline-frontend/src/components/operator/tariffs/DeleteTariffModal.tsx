@@ -24,7 +24,7 @@ const DeleteTariffModal = ({ isOpen, onClose, tariff, onSuccess }: DeleteTariffM
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Не вдалося видалити тариф");
+      setError(err instanceof Error ? err.message : "Не вдалося деактивувати тариф");
     } finally {
       setIsLoading(false);
     }
@@ -37,9 +37,9 @@ const DeleteTariffModal = ({ isOpen, onClose, tariff, onSuccess }: DeleteTariffM
           <AlertTriangle size={32} />
         </div>
         
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Видалити тариф?</h2>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Деактивувати тариф?</h2>
         <p className="text-slate-500 text-sm mb-6">
-          Ви дійсно хочете видалити маршрут <strong className="text-slate-800">{tariff.from} — {tariff.to}</strong>?
+          Тариф <strong className="text-slate-800">{tariff.from} — {tariff.to}</strong> буде приховано з UI, але запис залишиться в БД.
         </p>
 
         {error && <p className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl mb-4">{error}</p>}
@@ -49,7 +49,7 @@ const DeleteTariffModal = ({ isOpen, onClose, tariff, onSuccess }: DeleteTariffM
             Скасувати
           </button>
           <button onClick={handleDelete} disabled={isLoading} className="flex-1 px-5 py-3 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors disabled:opacity-70">
-            {isLoading ? "Видалення..." : "Видалити"}
+            {isLoading ? "Деактивація..." : "Деактивувати"}
           </button>
         </div>
       </div>

@@ -3,13 +3,13 @@ import { RefreshCcw, ArrowRight } from 'lucide-react';
 interface Props {
   basePrice: number;
   weightSurcharge: number;
-  isCourier: boolean;
+  courierPrice: number;
   insurance: number;
   totalPrice: number;
   isSubmitting: boolean;
 }
 
-export const CheckoutFooter = ({ basePrice, weightSurcharge, isCourier, insurance, totalPrice, isSubmitting }: Props) => (
+export const CheckoutFooter = ({ basePrice, weightSurcharge, courierPrice, insurance, totalPrice, isSubmitting }: Props) => (
   <div className="bg-pine rounded-3xl p-6 md:p-8 text-white shadow-sm flex flex-col lg:flex-row items-center justify-between gap-8">
     <div className="w-full lg:w-auto flex-1 flex flex-wrap gap-x-10 gap-y-6">
       <div>
@@ -22,10 +22,10 @@ export const CheckoutFooter = ({ basePrice, weightSurcharge, isCourier, insuranc
           <p className="text-lg font-black">+{weightSurcharge.toFixed(2)} <span className="text-sm font-medium text-white/70">грн</span></p>
         </div>
       )}
-      {isCourier && (
+      {courierPrice > 0 && (
         <div>
           <p className="text-xs uppercase tracking-widest text-emerald-400/80 font-bold mb-1.5">Кур'єр</p>
-          <p className="text-lg font-black text-emerald-400">+20 <span className="text-sm font-medium text-emerald-400/70">грн</span></p>
+          <p className="text-lg font-black text-emerald-400">+{courierPrice.toFixed(2)} <span className="text-sm font-medium text-emerald-400/70">грн</span></p>
         </div>
       )}
       {insurance > 0 && (

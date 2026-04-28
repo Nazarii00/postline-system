@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
-import { Edit3, Mail, MapPin, Search, ToggleLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { Edit3, Mail, MapPin, Search, ToggleLeft } from "lucide-react";
+import { Pagination } from "../../ui/Pagination";
+import { usePagination } from "../../../hooks/usePagination";
 import type { Operator, Department } from "../../../types/operators";
+import { INPUT_LIMITS, sanitizePlainText } from "../../../utils/formUtils";
 
 interface OperatorsTableProps {
   operators: Operator[];
@@ -13,10 +16,7 @@ interface OperatorsTableProps {
 const OperatorsTable = ({ operators, departments, isLoading, onToggleStatus, onEdit }: OperatorsTableProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [statusFilter, setStatusFilter] = useState('active');
 
   // Форматування ролі та ініціалів
   const formatRole = (role: string) => {
@@ -58,30 +58,20 @@ const OperatorsTable = ({ operators, departments, isLoading, onToggleStatus, onE
     return result;
   }, [operators, searchTerm, departmentFilter, statusFilter]);
 
-  // Пагінація
-  const totalPages = Math.ceil(filteredOperators.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const displayedOperators = filteredOperators.slice(startIndex, startIndex + itemsPerPage);
-
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      if (currentPage <= 4) {
-        pages.push(1, 2, 3, 4, 5, "...", totalPages);
-      } else if (currentPage >= totalPages - 3) {
-        pages.push(1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
-      } else {
-        pages.push(1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages);
-      }
-    }
-    return pages;
-  };
+  const {
+    activePage,
+    endIndex,
+    pageNumbers,
+    paginatedItems: displayedOperators,
+    setCurrentPage,
+    startIndex,
+    totalItems,
+    totalPages,
+  } = usePagination(filteredOperators, 10);
 
   // Скидання сторінки при зміні фільтрів
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+    setSearchTerm(sanitizePlainText(e.target.value, INPUT_LIMITS.nameMax));
     setCurrentPage(1);
   };
 
@@ -106,6 +96,7 @@ const OperatorsTable = ({ operators, departments, isLoading, onToggleStatus, onE
             placeholder="Пошук за ім'ям або email..."
             value={searchTerm}
             onChange={handleSearchChange}
+            maxLength={INPUT_LIMITS.nameMax}
             className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-pine outline-none text-sm transition-all font-medium"
           />
         </div>
@@ -230,45 +221,18 @@ const OperatorsTable = ({ operators, departments, isLoading, onToggleStatus, onE
           </table>
         </div>
 
-        {/* Пагінація з номерами сторінок */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
-            <button 
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-2 flex items-center gap-1 text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-white rounded-lg transition-colors"
-            >
-              <ChevronLeft size={18} />
-              <span className="hidden sm:inline">Попередня</span>
-            </button>
-            
-            <div className="flex items-center gap-1">
-              {getPageNumbers().map((page, index) => (
-                <button
-                  key={index}
-                  onClick={() => typeof page === "number" && setCurrentPage(page)}
-                  disabled={page === "..."}
-                  className={`min-w-[36px] h-9 px-2 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors
-                    ${page === "..." 
-                      ? "text-slate-400 cursor-default" 
-                      : page === currentPage 
-                        ? "bg-pine text-white shadow-sm" 
-                        : "text-slate-600 hover:bg-slate-200"
-                    }`}
-                >
-                  {page}
-                </button>
-              ))}
-            </div>
-
-            <button 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 flex items-center gap-1 text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-white rounded-lg transition-colors"
-            >
-              <span className="hidden sm:inline">Наступна</span>
-              <ChevronRight size={18} />
-            </button>
+        {totalItems > 0 && (
+          <div className="p-4 border-t border-slate-100 bg-slate-50">
+            <Pagination
+              activePage={activePage}
+              endIndex={endIndex}
+              itemLabel="працівників"
+              onPageChange={setCurrentPage}
+              pageNumbers={pageNumbers}
+              startIndex={startIndex}
+              totalItems={totalItems}
+              totalPages={totalPages}
+            />
           </div>
         )}
 
