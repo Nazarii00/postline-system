@@ -4,7 +4,7 @@ class TrackingRepository {
   async getShipmentByTrackingNumber(trackingNumber) {
     const query = `
       SELECT
-          s.id, s.tracking_number, s.status, s.total_cost, s.created_at, s.failed_attempts,
+          s.id, s.tracking_number, s.sender_id, s.status, s.total_cost, s.created_at, s.failed_attempts,
           sd.shipment_type, sd.weight_kg, sd.length_cm, sd.width_cm, sd.height_cm,
           sd.declared_value, sd.is_courier, sd.sender_address, sd.receiver_address,
           u_sender.full_name AS sender_name, u_receiver.full_name AS receiver_name,

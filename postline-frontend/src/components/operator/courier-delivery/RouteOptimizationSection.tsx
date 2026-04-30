@@ -105,7 +105,7 @@ export const RouteOptimizationSection = ({
           type="text"
           value={startAddress}
           onChange={(event) => onStartAddressChange(event.target.value)}
-          placeholder="Стартова адреса, наприклад: Львів, вул. Городоцька 10"
+          placeholder="Стартова адреса відділення кур'єра"
           required
           minLength={INPUT_LIMITS.addressMin}
           maxLength={INPUT_LIMITS.addressMax}

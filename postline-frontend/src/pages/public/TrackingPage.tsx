@@ -112,7 +112,13 @@ const TrackingPage = () => {
               />
             </div>
 
-            <TrackingTimeline history={parcelData.history} rawStatus={parcelData.rawStatus} shipmentId={parcelData.shipmentId}/>
+            <TrackingTimeline
+              history={parcelData.history}
+              rawStatus={parcelData.rawStatus}
+              shipmentId={parcelData.shipmentId}
+              canCancel={Boolean(parcelData.canCancel)}
+              onCancelled={() => performSearch(parcelData.trackingNumber)}
+            />
           </div>
         )}
       </section>

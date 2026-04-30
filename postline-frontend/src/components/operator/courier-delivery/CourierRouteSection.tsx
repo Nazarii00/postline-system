@@ -1,8 +1,8 @@
-import { MapPin, Route } from 'lucide-react';
+import { Clock, MapPin, Route, Waypoints } from 'lucide-react';
 import { OptimizedRouteMap } from '../../OptimizedRouteMap';
 import type { OptimizedRouteResult } from '../../../services/routeOptimizationService';
 import type { CourierDelivery } from '../../../types/courier';
-import { getRouteOrder } from './courierDeliveryUtils';
+import { formatDistanceKm, formatDurationMinutes, getRouteOrder } from './courierDeliveryUtils';
 
 type CourierRouteSectionProps = {
   isLoading: boolean;
@@ -39,7 +39,35 @@ export const CourierRouteSection = ({
     ) : (
       <div className="space-y-5">
         {confirmedRoute ? (
-          <OptimizedRouteMap route={confirmedRoute} />
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-pine/10 text-pine flex items-center justify-center shrink-0">
+                  <Waypoints size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-400">Загальна довжина</p>
+                  <p className="text-lg font-black text-slate-900">
+                    {formatDistanceKm(confirmedRoute.distanceMeters)} км
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-400">Приблизний час</p>
+                  <p className="text-lg font-black text-slate-900">
+                    {formatDurationMinutes(confirmedRoute.durationSeconds)} хв
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <OptimizedRouteMap route={confirmedRoute} />
+          </>
         ) : (
           <div className="p-4 bg-amber-50 border border-amber-200 text-amber-700 rounded-2xl text-sm font-bold">
             Маршрут підтверджено, але координати недоступні для старих записів. Список адрес нижче актуальний.

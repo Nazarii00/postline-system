@@ -37,11 +37,13 @@ const OperatorsPage = () => {
   const handleToggleStatus = async (op: Operator) => {
     if (!window.confirm(`${op.deleted_at ? 'Активувати' : 'Деактивувати'} ${op.full_name}?`)) return;
     try {
-      await api.delete(`/operators/${op.id}`);
+      const response = await api.patch<{ data: Operator }>(`/operators/${op.id}/status`, {
+        isActive: Boolean(op.deleted_at),
+      });
       setOperators((prev) =>
         prev.map((o) =>
           o.id === op.id
-            ? { ...o, deleted_at: o.deleted_at ? null : new Date().toISOString() }
+            ? { ...o, ...response.data }
             : o
         )
       );

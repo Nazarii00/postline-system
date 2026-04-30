@@ -15,6 +15,7 @@ export interface ParcelData {
   route: string;
   status: string;
   rawStatus: string;
+  canCancel?: boolean;
   sender: { name: string; city: string; branch: string };
   receiver: { name: string; city: string; branch: string };
   details: { weight: string; dimensions: string; declaredValue: string };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { api } from '../../../services/api';
-import type { Operator, Department } from '../../../types/operators';
+import type { Operator, Department, StaffRole } from '../../../types/operators';
 import {
   INPUT_LIMITS,
   INPUT_PATTERNS,
@@ -22,6 +22,7 @@ const EditOperatorModal = ({ operator, departments, onClose, onSuccess }: Props)
   const [departmentId, setDepartmentId] = useState(
     operator.department_id ? String(operator.department_id) : ''
   );
+  const [role, setRole] = useState<StaffRole>(operator.role === 'courier' ? 'courier' : 'operator');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,6 +30,7 @@ const EditOperatorModal = ({ operator, departments, onClose, onSuccess }: Props)
     setFullName(operator.full_name);
     setPhone(operator.phone ?? '');
     setDepartmentId(operator.department_id ? String(operator.department_id) : '');
+    setRole(operator.role === 'courier' ? 'courier' : 'operator');
   }, [operator]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,6 +52,7 @@ const EditOperatorModal = ({ operator, departments, onClose, onSuccess }: Props)
         fullName: fullName.trim(),
         phone: phone || undefined,
         departmentId: departmentId ? Number(departmentId) : undefined,
+        role,
       });
       onSuccess();
       onClose();
@@ -128,6 +131,28 @@ const EditOperatorModal = ({ operator, departments, onClose, onSuccess }: Props)
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-slate-500 font-black mb-2">
+              Роль
+            </label>
+            <div className="flex gap-3">
+              {(['operator', 'courier'] as const).map((staffRole) => (
+                <button
+                  key={staffRole}
+                  type="button"
+                  onClick={() => setRole(staffRole)}
+                  className={`flex-1 py-3 rounded-2xl font-bold text-sm transition-all border ${
+                    role === staffRole
+                      ? 'bg-pine text-white border-pine'
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-pine/30'
+                  }`}
+                >
+                  {staffRole === 'operator' ? 'Оператор' : "Кур'єр"}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

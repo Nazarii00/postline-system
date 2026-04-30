@@ -9,6 +9,22 @@ interface Props {
   selectedTariffTitle?: string;
 }
 
+const normalizeCityName = (city: string) => city.trim().toLocaleLowerCase('uk-UA');
+
+const getUniqueCities = (tariffs: BackendTariffRecord[]) => {
+  const citiesByKey = new Map<string, string>();
+
+  tariffs.forEach((tariff) => {
+    [tariff.city_from, tariff.city_to].forEach((city) => {
+      const displayCity = city.trim();
+      const key = normalizeCityName(displayCity);
+      if (key && !citiesByKey.has(key)) citiesByKey.set(key, displayCity);
+    });
+  });
+
+  return [...citiesByKey.values()].sort((left, right) => left.localeCompare(right, 'uk-UA'));
+};
+
 export const TariffsCalculator = ({ tariffs, selectedTariffType, selectedTariffTitle }: Props) => {
   const [cityFrom, setCityFrom] = useState('');
   const [cityTo, setCityTo] = useState('');
@@ -16,10 +32,7 @@ export const TariffsCalculator = ({ tariffs, selectedTariffType, selectedTariffT
   const [result, setResult] = useState<{ min: number; max: number; tariffType: string; tariffTitle?: string } | null>(null);
   const [error, setError] = useState<{ message: string; tariffType: string } | null>(null);
 
-  const cities = [...new Set([
-    ...tariffs.map((tariff) => tariff.city_from),
-    ...tariffs.map((tariff) => tariff.city_to),
-  ])].sort();
+  const cities = getUniqueCities(tariffs);
 
   const handleCalculate = () => {
     setError(null);
@@ -37,8 +50,8 @@ export const TariffsCalculator = ({ tariffs, selectedTariffType, selectedTariffT
 
     const matched = tariffs.filter(
       (tariff) =>
-        tariff.city_from.toLowerCase() === cityFrom.toLowerCase() &&
-        tariff.city_to.toLowerCase() === cityTo.toLowerCase() &&
+        normalizeCityName(tariff.city_from) === normalizeCityName(cityFrom) &&
+        normalizeCityName(tariff.city_to) === normalizeCityName(cityTo) &&
         tariff.shipment_type === selectedTariffType
     );
 
@@ -104,7 +117,7 @@ export const TariffsCalculator = ({ tariffs, selectedTariffType, selectedTariffT
             className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:border-pine outline-none transition-all font-medium text-slate-800"
           >
             <option value="">Оберіть місто...</option>
-            {cities.filter((city) => city !== cityFrom).map((city) => (
+            {cities.filter((city) => normalizeCityName(city) !== normalizeCityName(cityFrom)).map((city) => (
               <option key={city} value={city}>{city}</option>
             ))}
           </select>

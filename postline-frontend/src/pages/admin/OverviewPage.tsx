@@ -12,6 +12,12 @@ type Stats = {
   departments: number;
 };
 
+type OperatorStatItem = {
+  id: number;
+  role: string;
+  deleted_at?: string | null;
+};
+
 const OverviewPage = () => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -21,7 +27,7 @@ const OverviewPage = () => {
   useEffect(() => {
     Promise.all([
       api.get<{ data: { id: number; status: string }[] }>("/shipments"),
-      api.get<{ data: { id: number; role: string }[] }>("/operators"),
+      api.get<{ data: OperatorStatItem[] }>("/operators?includeInactive=false"),
       api.get<{ data: Department[] }>("/departments"),
       api.get<{ data: ActivityItem[] }>("/shipments/activity"),
     ])
@@ -30,7 +36,7 @@ const OverviewPage = () => {
         setStats({
           total: shipments.length,
           in_transit: shipments.filter((s) => s.status === "in_transit").length,
-          operators: operatorsRes.data.length,
+          operators: operatorsRes.data.filter((operator) => !operator.deleted_at).length,
           departments: deptsRes.data.filter((d) => !d.deleted_at).length,
         });
         setDepartments(deptsRes.data.filter((d) => !d.deleted_at).slice(0, 4));
@@ -39,7 +45,7 @@ const OverviewPage = () => {
       .catch(() => {
         Promise.all([
           api.get<{ data: { id: number; status: string }[] }>("/shipments"),
-          api.get<{ data: { id: number; role: string }[] }>("/operators"),
+          api.get<{ data: OperatorStatItem[] }>("/operators?includeInactive=false"),
           api.get<{ data: Department[] }>("/departments"),
         ])
           .then(([shipmentsRes, operatorsRes, deptsRes]) => {
@@ -47,7 +53,7 @@ const OverviewPage = () => {
             setStats({
               total: shipments.length,
               in_transit: shipments.filter((s) => s.status === "in_transit").length,
-              operators: operatorsRes.data.length,
+              operators: operatorsRes.data.filter((operator) => !operator.deleted_at).length,
               departments: deptsRes.data.filter((d) => !d.deleted_at).length,
             });
             setDepartments(

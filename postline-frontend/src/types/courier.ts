@@ -16,6 +16,9 @@ export type Courier = {
   id: number;
   full_name: string;
   phone: string;
+  department_id: number | null;
+  department_city?: string | null;
+  department_address?: string | null;
   role: string;
 };
 

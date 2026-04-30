@@ -19,6 +19,24 @@ const authGuard = (req, res, next) => {
   }
 };
 
+const optionalAuthGuard = (req, _res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    req.user = jwt.verify(token, jwtSecret);
+  } catch {
+    req.user = null;
+  }
+
+  return next();
+};
+
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
@@ -33,4 +51,4 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { authGuard, authorize };
+module.exports = { authGuard, optionalAuthGuard, authorize };

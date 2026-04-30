@@ -95,6 +95,11 @@ const getTrackingHandler = async (req, res, next) => {
       trackingNumber: parcel.tracking_number,
       status: statusMap[parcel.status],
       rawStatus: parcel.status,
+      canCancel: Boolean(
+        req.user?.role === "client"
+        && Number(req.user.sub) === Number(parcel.sender_id)
+        && parcel.status === "accepted"
+      ),
       registrationDate: new Date(parcel.created_at).toLocaleDateString("uk-UA"),
       type: typeMap[parcel.shipment_type] || parcel.shipment_type,
       route: `${parcel.origin_city} → ${parcel.dest_city}`,

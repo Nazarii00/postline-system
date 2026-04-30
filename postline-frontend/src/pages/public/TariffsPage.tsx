@@ -12,6 +12,50 @@ const TYPE_CONFIG: Record<string, { title: string; icon: JSX.Element; descriptio
   package: { title: 'Вантажі', icon: <Truck size={24} />, description: 'Для габаритних та комерційних відправлень' },
 };
 
+const normalizeCityName = (city: string) => city.trim().toLocaleLowerCase('uk-UA');
+const formatPrice = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(2);
+
+const getUniqueRouteFeatures = (tariffs: BackendTariffRecord[]) => {
+  const routes = new Map<string, {
+    cityFrom: string;
+    cityTo: string;
+    minBasePrice: number;
+    minPricePerKg: number;
+  }>();
+
+  tariffs.forEach((tariff) => {
+    const cityFrom = tariff.city_from.trim();
+    const cityTo = tariff.city_to.trim();
+    const key = `${normalizeCityName(cityFrom)}->${normalizeCityName(cityTo)}`;
+    const basePrice = parseFloat(tariff.base_price);
+    const pricePerKg = parseFloat(tariff.price_per_kg);
+    const existing = routes.get(key);
+
+    if (!existing) {
+      routes.set(key, {
+        cityFrom,
+        cityTo,
+        minBasePrice: basePrice,
+        minPricePerKg: pricePerKg,
+      });
+      return;
+    }
+
+    existing.minBasePrice = Math.min(existing.minBasePrice, basePrice);
+    existing.minPricePerKg = Math.min(existing.minPricePerKg, pricePerKg);
+  });
+
+  return [...routes.values()]
+    .sort((left, right) =>
+      left.cityFrom.localeCompare(right.cityFrom, 'uk-UA')
+      || left.cityTo.localeCompare(right.cityTo, 'uk-UA')
+    )
+    .slice(0, 4)
+    .map((route) =>
+      `${route.cityFrom} → ${route.cityTo} · від ${formatPrice(route.minBasePrice)} грн + ${formatPrice(route.minPricePerKg)} грн/кг`
+    );
+};
+
 const TariffsPage = () => {
   const [tariffs, setTariffs] = useState<BackendTariffRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,9 +78,7 @@ const TariffsPage = () => {
       type,
       ...config,
       price: minPrice ? `від ${minPrice} грн` : 'Уточнюйте',
-      features: typeTariffs.slice(0, 4).map(
-        (tariff) => `${tariff.city_from} → ${tariff.city_to} · ${tariff.base_price} грн + ${tariff.price_per_kg} грн/кг`
-      ),
+      features: getUniqueRouteFeatures(typeTariffs),
     };
   });
 

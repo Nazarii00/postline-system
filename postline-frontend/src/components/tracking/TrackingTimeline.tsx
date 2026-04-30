@@ -2,20 +2,20 @@ import { useState } from 'react';
 import { AlertCircle, CheckCircle2, CircleDashed } from 'lucide-react';
 import { type TrackingHistoryItem } from '../../types/tracking';
 import { api } from '../../services/api';
-import { useAuthStore } from '../../store/authStore';
 
 interface Props {
   history: TrackingHistoryItem[];
   rawStatus: string;
   shipmentId: number;
+  canCancel?: boolean;
+  onCancelled?: () => void | Promise<void>;
 }
 
-export const TrackingTimeline = ({ history, rawStatus, shipmentId }: Props) => {
-  const user = useAuthStore((state) => state.user);
+export const TrackingTimeline = ({ history, rawStatus, shipmentId, canCancel = false, onCancelled }: Props) => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [isCancelled, setIsCancelled] = useState(false);
-  const canRequestCancel = user?.role === 'client';
+  const canRequestCancel = canCancel && rawStatus === 'accepted';
 
   const handleCancel = async () => {
     if (!window.confirm('Ви впевнені, що хочете скасувати відправлення?')) return;
@@ -25,6 +25,7 @@ export const TrackingTimeline = ({ history, rawStatus, shipmentId }: Props) => {
     try {
       await api.patch(`/shipments/${shipmentId}/cancel`, {});
       setIsCancelled(true);
+      await onCancelled?.();
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : 'Помилка скасування');
     } finally {
@@ -75,7 +76,7 @@ export const TrackingTimeline = ({ history, rawStatus, shipmentId }: Props) => {
         })}
       </div>
 
-      {canRequestCancel && rawStatus === 'accepted' && !isCancelled && (
+      {canRequestCancel && !isCancelled && (
         <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">
           {cancelError && (
             <p className="text-sm text-red-500 font-medium">{cancelError}</p>

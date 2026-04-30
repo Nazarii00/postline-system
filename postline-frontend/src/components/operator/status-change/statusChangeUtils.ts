@@ -14,6 +14,10 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const getStatusActionLabel = (shipment: Shipment, status: string) => {
+  if (status === 'returned') {
+    return 'Повернути відправлення';
+  }
+
   if (shipment.status === 'sorting' && status === 'in_transit') {
     return shipment.current_dept_id === shipment.dest_dept_id
       ? 'Передати до видачі'
@@ -32,15 +36,15 @@ export const getWorkflowStatuses = (shipment: Shipment) => {
     case 'accepted':
       return ['sorting'];
     case 'sorting':
-      return ['in_transit'];
+      return ['in_transit', 'returned'];
     case 'in_transit':
       return Number(shipment.current_dept_id) === Number(shipment.dest_dept_id)
-        ? ['arrived']
-        : ['in_transit'];
+        ? ['arrived', 'returned']
+        : ['in_transit', 'returned'];
     case 'arrived':
-      return ['ready_for_pickup'];
+      return ['ready_for_pickup', 'returned'];
     case 'ready_for_pickup':
-      return ['delivered'];
+      return ['delivered', 'returned'];
     default:
       return [];
   }

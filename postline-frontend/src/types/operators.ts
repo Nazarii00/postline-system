@@ -4,6 +4,8 @@ export interface Operator {
   email: string;
   phone: string | null;
   department_id: number | null;
+  department_city?: string | null;
+  department_address?: string | null;
   role: string;
   created_at: string;
   deleted_at: string | null;

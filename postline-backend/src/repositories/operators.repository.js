@@ -1,6 +1,18 @@
 const db = require('../db');
 
 const staffSelect = `id, full_name, email, phone, department_id, role, created_at, deleted_at`;
+const staffListSelect = `
+  u.id,
+  u.full_name,
+  u.email,
+  u.phone,
+  u.department_id,
+  u.role,
+  u.created_at,
+  u.deleted_at,
+  d.city AS department_city,
+  d.address AS department_address
+`;
 
 const createOperator = ({ fullName, email, phone, departmentId, role, passwordHash }) =>
   db.one(
@@ -12,32 +24,38 @@ const createOperator = ({ fullName, email, phone, departmentId, role, passwordHa
 
 const getUserById = (id) =>
   db.one(
-    `SELECT id, full_name, email, phone, department_id, role, created_at, deleted_at
-     FROM users WHERE id = $1`,
+    `SELECT ${staffListSelect}
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.id = $1`,
     [id]
   );
 
 const getUserByEmail = (email) =>
   db.one(
-    `SELECT id, full_name, email, phone, department_id, role, created_at, deleted_at
-     FROM users WHERE email = $1`,
+    `SELECT ${staffListSelect}
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.email = $1`,
     [email]
   );
 
 const getAllOperators = (includeInactive = false) =>
   db.many(
-    `SELECT ${staffSelect}
-     FROM users
-     WHERE role IN ('operator', 'courier') ${includeInactive ? '' : 'AND deleted_at IS NULL'}
-     ORDER BY deleted_at NULLS FIRST, full_name ASC`
+    `SELECT ${staffListSelect}
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.role IN ('operator', 'courier') ${includeInactive ? '' : 'AND u.deleted_at IS NULL'}
+     ORDER BY u.deleted_at NULLS FIRST, u.full_name ASC`
   );
 
 const getOperatorsByDepartment = (departmentId, includeInactive = false) =>
   db.many(
-    `SELECT ${staffSelect}
-     FROM users
-     WHERE department_id = $1 AND role IN ('operator', 'courier') ${includeInactive ? '' : 'AND deleted_at IS NULL'}
-     ORDER BY deleted_at NULLS FIRST, full_name ASC`,
+    `SELECT ${staffListSelect}
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.department_id = $1 AND u.role IN ('operator', 'courier') ${includeInactive ? '' : 'AND u.deleted_at IS NULL'}
+     ORDER BY u.deleted_at NULLS FIRST, u.full_name ASC`,
     [departmentId]
   );
 

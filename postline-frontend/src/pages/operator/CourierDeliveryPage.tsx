@@ -8,6 +8,7 @@ import {
   type OptimizedRouteResult,
 } from '../../services/routeOptimizationService';
 import type { Courier, CourierDelivery, ReadyForCourierShipment } from '../../types/courier';
+import type { Department } from '../../types/departments';
 import { usePagination } from '../../hooks/usePagination';
 import { INPUT_LIMITS, sanitizeAddress } from '../../utils/formUtils';
 import { ActiveDeliveriesSection } from '../../components/operator/courier-delivery/ActiveDeliveriesSection';
@@ -29,6 +30,7 @@ const CourierDeliveryPage = () => {
 
   const [shipments, setShipments] = useState<ReadyForCourierShipment[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [deliveries, setDeliveries] = useState<CourierDelivery[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -134,6 +136,36 @@ const CourierDeliveryPage = () => {
     setShipments(res.data);
   }, []);
 
+  const formatDepartmentStartAddress = useCallback(
+    (department?: Pick<Department, 'city' | 'address'> | null) =>
+      sanitizeAddress([department?.city, department?.address].filter(Boolean).join(', ')),
+    []
+  );
+
+  const getCourierDefaultStartAddress = useCallback((courierId: string | number | null) => {
+    if (!courierId) return '';
+
+    const courier = couriers.find((item) => Number(item.id) === Number(courierId));
+    const addressFromCourier = sanitizeAddress(
+      [courier?.department_city, courier?.department_address].filter(Boolean).join(', ')
+    );
+
+    if (addressFromCourier) return addressFromCourier;
+
+    const courierDepartment = departments.find((department) =>
+      Number(department.id) === Number(courier?.department_id)
+    );
+    const addressFromDepartment = formatDepartmentStartAddress(courierDepartment);
+
+    if (addressFromDepartment) return addressFromDepartment;
+
+    const operatorDepartment = departments.find((department) =>
+      Number(department.id) === Number(user?.departmentId)
+    );
+
+    return formatDepartmentStartAddress(operatorDepartment);
+  }, [couriers, departments, formatDepartmentStartAddress, user?.departmentId]);
+
   useEffect(() => {
     if (isCourier && user?.id) {
       setRouteCourierId(String(user.id));
@@ -146,6 +178,8 @@ const CourierDeliveryPage = () => {
     if (!isCourier) {
       requests.push(
         loadAssignableShipments(),
+        api.get<{ data: Department[] }>('/departments')
+          .then((res) => setDepartments(res.data)),
         api.get<{ data: Courier[] }>(`/operators?departmentId=${user?.departmentId}`)
           .then((res) => setCouriers(res.data.filter((courier) => courier.role === 'courier')))
       );
@@ -164,8 +198,18 @@ const CourierDeliveryPage = () => {
     );
   }, [deliveries]);
 
+  useEffect(() => {
+    if (isCourier || !routeCourierId || startAddress.trim()) return;
+
+    const defaultAddress = getCourierDefaultStartAddress(routeCourierId);
+    if (defaultAddress) {
+      setStartAddress(defaultAddress);
+    }
+  }, [getCourierDefaultStartAddress, isCourier, routeCourierId, startAddress]);
+
   const handleRouteCourierChange = (value: string) => {
     setRouteCourierId(value);
+    setStartAddress(getCourierDefaultStartAddress(value));
     setSelectedDeliveryIds([]);
     setOptimizedRoute(null);
     setRouteStops([]);
@@ -211,6 +255,7 @@ const CourierDeliveryPage = () => {
 
     if (!routeCourierNumber) {
       setRouteCourierId(String(deliveryCourierId));
+      setStartAddress(getCourierDefaultStartAddress(deliveryCourierId));
     }
 
     setRouteError('');
