@@ -11,7 +11,7 @@ const courierRoutesRouter = express.Router();
 courierRoutesRouter.post(
   "/confirm",
   authGuard,
-  authorize("operator", "admin", "courier"),
+  authorize("operator", "admin"),
   confirmCourierRouteValidation,
   validate,
   confirmCourierRouteHandler

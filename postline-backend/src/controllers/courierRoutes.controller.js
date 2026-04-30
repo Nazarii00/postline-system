@@ -2,6 +2,7 @@ const {
   ROUTE_NOTE_MARKER,
   fetchDeliveriesForRoute,
   createConfirmedCourierRoute,
+  findActiveConfirmedRouteForCourier,
 } = require("../repositories/courierRoutes.repository");
 const { findUserById } = require("../repositories/users.repository");
 
@@ -98,6 +99,14 @@ const confirmCourierRouteHandler = async (req, res, next) => {
 
     if (deliveries.some((delivery) => delivery.notes?.includes(ROUTE_NOTE_MARKER))) {
       throw createError(400, "Одна або кілька доставок уже мають підтверджений маршрут у примітках");
+    }
+
+    const activeRoute = await findActiveConfirmedRouteForCourier(courierId);
+    if (activeRoute) {
+      throw createError(
+        409,
+        `У цього кур'єра вже є активний підтверджений маршрут. Завершіть поточні доставки перед створенням нового.`
+      );
     }
 
     if (req.user.role === "operator") {

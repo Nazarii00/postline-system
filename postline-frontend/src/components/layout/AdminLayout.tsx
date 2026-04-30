@@ -7,6 +7,7 @@ import {
   BadgePercent,
   PackageSearch,
   BarChart3,
+  Route,
   LogOut,
   Menu,
   X,
@@ -25,6 +26,7 @@ const AdminLayout = () => {
     { icon: <Users size={20} />, label: 'Оператори', path: '/admin/operators' },
     { icon: <MapPin size={20} />, label: 'Відділення', path: '/admin/offices' },
     { icon: <BadgePercent size={20} />, label: 'Тарифи', path: '/admin/tariffs' },
+    { icon: <Route size={20} />, label: 'Маршрути', path: '/admin/routes' },
     { icon: <PackageSearch size={20} />, label: 'Всі відправлення', path: '/admin/shipments' },
     { icon: <BarChart3 size={20} />, label: 'Звіти', path: '/admin/reports' },
   ];

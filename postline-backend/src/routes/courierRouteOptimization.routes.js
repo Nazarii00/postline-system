@@ -11,7 +11,7 @@ const courierRouteOptimizationRouter = express.Router();
 courierRouteOptimizationRouter.post(
   "/optimize",
   authGuard,
-  authorize("operator", "admin", "courier"),
+  authorize("operator", "admin"),
   optimizeCourierRouteValidation,
   validate,
   optimizeCourierDeliveriesRouteHandler

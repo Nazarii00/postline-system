@@ -1,4 +1,5 @@
 const db = require("../db");
+const { ROUTE_NOTE_MARKER } = require("./courierRoutes.repository");
 const {
   createCourierDeliveryNotification,
   createShipmentStatusNotifications,
@@ -95,12 +96,24 @@ const getCourierDeliveryById = (id) =>
     [id]
   );
 
+const hasBlockingCourierDelivery = (shipmentId) =>
+  db.oneOrNone(
+    `SELECT id, status
+     FROM courier_deliveries
+     WHERE shipment_id = $1
+       AND status IN ('assigned', 'in_progress', 'delivered')
+     ORDER BY attempt_datetime DESC, id DESC
+     LIMIT 1`,
+    [shipmentId]
+  );
+
 const listCourierDeliveries = ({
   shipmentId,
   courierId,
   status,
   departmentId,
   courierDepartmentId,
+  confirmedOnly,
 } = {}) =>
   db.many(
     `${courierDeliverySelect}
@@ -115,6 +128,10 @@ const listCourierDeliveries = ({
          $5::int IS NULL
          OR (courier_dept.id = $5 AND courier_dept.city = dest_dept.city)
        )
+       AND (
+         $6::boolean IS NOT TRUE
+         OR cd.notes ILIKE '%' || $7::text || '%'
+       )
      ORDER BY cd.attempt_datetime DESC`,
     [
       shipmentId || null,
@@ -122,6 +139,8 @@ const listCourierDeliveries = ({
       status || null,
       departmentId || null,
       courierDepartmentId || null,
+      Boolean(confirmedOnly),
+      ROUTE_NOTE_MARKER,
     ]
   );
 
@@ -154,6 +173,15 @@ const updateCourierDeliveryStatus = async (id, { status, failureReason, notes, a
 
     let shipment = null;
     let courierPickupFallback = false;
+
+    if (status === "in_progress") {
+      return {
+        ...delivery,
+        shipment,
+        failedAttempts: null,
+        courierPickupFallback,
+      };
+    }
 
     if (status === "delivered") {
       const { rows: [updatedShipment] } = await client.query(
@@ -236,6 +264,7 @@ const updateCourierDeliveryStatus = async (id, { status, failureReason, notes, a
 module.exports = {
   createCourierDelivery,
   getCourierDeliveryById,
+  hasBlockingCourierDelivery,
   listCourierDeliveries,
   updateCourierDeliveryStatus,
 };

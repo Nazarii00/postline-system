@@ -1,15 +1,24 @@
 const {
   createCourierDelivery,
   getCourierDeliveryById,
+  hasBlockingCourierDelivery,
   listCourierDeliveries,
   updateCourierDeliveryStatus,
 } = require("../repositories/courier.repository");
+const {
+  ROUTE_NOTE_MARKER,
+  appendCourierRouteMeta,
+  hasRouteMeta,
+  listConfirmedRouteDeliveriesByRouteId,
+  parseLegacyRouteNote,
+} = require("../repositories/courierRoutes.repository");
 const { getShipmentById } = require("../repositories/shipments.repository");
 const { findUserById } = require("../repositories/users.repository");
 const { getDepartmentById } = require("../repositories/departments.repository");
+const { geocodeAddress } = require("../services/maps.service");
 
 const allowedCourierStatusTransitions = {
-  assigned: ["delivered", "failed"],
+  assigned: ["in_progress"],
   in_progress: ["delivered", "failed"],
   delivered: [],
   failed: [],
@@ -34,6 +43,80 @@ const isDeliveryInCourierCity = (delivery) =>
   && Boolean(delivery.dest_city)
   && delivery.courier_city === delivery.dest_city;
 
+const backfillConfirmedRouteMetadata = async (deliveries) => {
+  const routeIds = new Set();
+
+  for (const delivery of deliveries) {
+    if (!delivery.notes?.includes(ROUTE_NOTE_MARKER) || hasRouteMeta(delivery.notes)) continue;
+
+    const routeInfo = parseLegacyRouteNote(delivery.notes);
+    if (routeInfo?.routeId) {
+      routeIds.add(routeInfo.routeId);
+    }
+  }
+
+  if (routeIds.size === 0) return false;
+
+  for (const routeId of routeIds) {
+    try {
+      const routeDeliveries = await listConfirmedRouteDeliveriesByRouteId(routeId);
+      const routeStops = routeDeliveries
+        .map((delivery) => ({ delivery, routeInfo: parseLegacyRouteNote(delivery.notes) }))
+        .filter((item) => item.routeInfo && !hasRouteMeta(item.delivery.notes))
+        .sort((left, right) => left.routeInfo.order - right.routeInfo.order);
+
+      if (routeStops.length === 0) continue;
+
+      const routeInfo = routeStops[0].routeInfo;
+      const routeCity = routeStops[0].delivery.dest_city || routeStops[0].delivery.courier_city || null;
+      const start = await geocodeAddress(routeInfo.startAddress, { city: routeCity });
+      const geocodedStops = await Promise.all(
+        routeStops.map(async ({ delivery, routeInfo: stopRouteInfo }) => ({
+          delivery,
+          routeInfo: stopRouteInfo,
+          geocoded: await geocodeAddress(delivery.to_address, { city: delivery.dest_city }),
+        }))
+      );
+
+      const geometry = {
+        type: "LineString",
+        coordinates: [
+          [start.lng, start.lat],
+          ...geocodedStops.map(({ geocoded }) => [geocoded.lng, geocoded.lat]),
+        ],
+      };
+
+      for (const { delivery, routeInfo: stopRouteInfo, geocoded } of geocodedStops) {
+        await appendCourierRouteMeta({
+          deliveryId: delivery.id,
+          meta: {
+            routeId,
+            courierId: delivery.courier_id,
+            operatorId: delivery.operator_id || null,
+            startAddress: start.resolvedAddress || routeInfo.startAddress,
+            distanceMeters: routeInfo.distanceMeters,
+            durationSeconds: routeInfo.durationSeconds,
+            confirmedAt: routeInfo.confirmedAt,
+            geometry,
+            stop: {
+              deliveryId: delivery.id,
+              order: stopRouteInfo.order,
+              toAddress: delivery.to_address,
+              resolvedAddress: geocoded.resolvedAddress,
+              lat: geocoded.lat,
+              lng: geocoded.lng,
+            },
+          },
+        });
+      }
+    } catch (error) {
+      console.warn(`Не вдалося відновити координати маршруту ${routeId}:`, error.message);
+    }
+  }
+
+  return true;
+};
+
 const createCourierDeliveryHandler = async (req, res, next) => {
   try {
     const { shipmentId, courierId, toAddress, notes } = req.body;
@@ -57,6 +140,15 @@ const createCourierDeliveryHandler = async (req, res, next) => {
     if (Number(shipment.failed_attempts || 0) >= 3) {
       return res.status(400).json({
         message: "Після трьох невдалих кур'єрських спроб відправлення доступне тільки для самовивозу",
+      });
+    }
+
+    const blockingDelivery = await hasBlockingCourierDelivery(shipmentId);
+    if (blockingDelivery) {
+      return res.status(409).json({
+        message: blockingDelivery.status === "delivered"
+          ? "Відправлення вже було видане кур'єром"
+          : "Для цього відправлення вже є активна кур'єрська доставка",
       });
     }
 
@@ -128,6 +220,9 @@ const listCourierDeliveriesHandler = async (req, res, next) => {
   try {
     const { shipmentId, courierId, status } = req.query;
     const effectiveCourierId = req.user.role === "courier" ? req.user.sub : courierId;
+    const confirmedOnly = req.user.role === "courier"
+      ? true
+      : req.query.confirmedOnly === "true";
     const courierDepartmentId = req.user.role === "courier"
       ? await getUserDepartmentId(req.user.sub)
       : null;
@@ -143,13 +238,28 @@ const listCourierDeliveriesHandler = async (req, res, next) => {
       return res.status(400).json({ message: "Кур'єру не призначено відділення" });
     }
 
-    const deliveries = await listCourierDeliveries({
+    let deliveries = await listCourierDeliveries({
       shipmentId: shipmentId ? Number(shipmentId) : null,
       courierId: effectiveCourierId ? Number(effectiveCourierId) : null,
       status: status || null,
       departmentId,
       courierDepartmentId,
+      confirmedOnly,
     });
+
+    if (req.user.role === "courier" && confirmedOnly) {
+      const metadataBackfilled = await backfillConfirmedRouteMetadata(deliveries);
+      if (metadataBackfilled) {
+        deliveries = await listCourierDeliveries({
+          shipmentId: shipmentId ? Number(shipmentId) : null,
+          courierId: effectiveCourierId ? Number(effectiveCourierId) : null,
+          status: status || null,
+          departmentId,
+          courierDepartmentId,
+          confirmedOnly,
+        });
+      }
+    }
 
     return res.status(200).json({ data: deliveries });
   } catch (error) {
@@ -184,6 +294,33 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
       return res.status(403).json({ message: "Немає прав для оновлення цієї доставки" });
     }
 
+    const isCourierActor = req.user.role === "courier";
+    const isOperatorActor = ["operator", "admin"].includes(req.user.role);
+
+    if (isCourierActor && status !== "in_progress") {
+      return res.status(403).json({
+        message: "Кур'єр може лише позначити, що відвідав адресу. Результат доставки фіксує оператор.",
+      });
+    }
+
+    if (isCourierActor && !delivery.notes?.includes(ROUTE_NOTE_MARKER)) {
+      return res.status(400).json({
+        message: "Кур'єр може відмічати тільки доставки з підтвердженого маршруту",
+      });
+    }
+
+    if (isOperatorActor && status === "in_progress") {
+      return res.status(403).json({
+        message: "Позначку про відвідування адреси виконує кур'єр",
+      });
+    }
+
+    if (isOperatorActor && delivery.status !== "in_progress") {
+      return res.status(400).json({
+        message: "Оператор може фіксувати результат тільки після позначки кур'єра про відвідування адреси",
+      });
+    }
+
     const allowedStatuses = allowedCourierStatusTransitions[delivery.status] || [];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
@@ -192,10 +329,24 @@ const updateCourierDeliveryStatusHandler = async (req, res, next) => {
     }
 
     const shipment = await getShipmentById(delivery.shipment_id);
+    if (!shipment) {
+      return res.status(400).json({
+        message: "Відправлення для кур'єрської доставки не знайдено",
+      });
+    }
+
+    if (status === "in_progress" && ["delivered", "returned", "cancelled"].includes(shipment.status)) {
+      return res.status(400).json({
+        message: "Не можна позначити відвідування для завершеного або скасованого відправлення",
+      });
+    }
+
     if (
-      !shipment
-      || shipment.status !== "ready_for_pickup"
-      || Number(shipment.current_dept_id) !== Number(shipment.dest_dept_id)
+      status !== "in_progress"
+      && (
+        shipment.status !== "ready_for_pickup"
+        || Number(shipment.current_dept_id) !== Number(shipment.dest_dept_id)
+      )
     ) {
       return res.status(400).json({
         message: "Результат кур'єрської доставки можна вказати тільки після прибуття посилки у кінцеве відділення",

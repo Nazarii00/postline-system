@@ -14,10 +14,10 @@ const routeRouter = express.Router();
 
 routeRouter.use(authGuard);
 
-routeRouter.post("/", authorize("admin", "operator"), createRouteValidation, validate, createRouteHandler);
-routeRouter.get("/", authorize("admin", "operator"), listRoutesHandler);
-routeRouter.get("/:id", authorize("admin", "operator"), getRouteHandler);
-routeRouter.patch("/:id", authorize("admin", "operator"), updateRouteValidation, validate, updateRouteHandler);
-routeRouter.delete("/:id", authorize("admin", "operator"), deleteRouteHandler);
+routeRouter.post("/", authorize("admin"), createRouteValidation, validate, createRouteHandler);
+routeRouter.get("/", authorize("admin"), listRoutesHandler);
+routeRouter.get("/:id", authorize("admin"), getRouteHandler);
+routeRouter.patch("/:id", authorize("admin"), updateRouteValidation, validate, updateRouteHandler);
+routeRouter.delete("/:id", authorize("admin"), deleteRouteHandler);
 
 module.exports = { routeRouter };

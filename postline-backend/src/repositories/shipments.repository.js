@@ -36,10 +36,17 @@ const ensureProcessingEvent = async (client, {
   const { rows: [existingEvent] } = await client.query(
     `SELECT id
      FROM processing_events
-     WHERE shipment_id = $1 AND status_set = $2
-     ORDER BY created_at DESC, id DESC
+     WHERE shipment_id = $1
+       AND status_set = $2
+       AND (
+         department_id IS NOT DISTINCT FROM $3::int
+         OR created_at >= NOW() - INTERVAL '10 seconds'
+       )
+     ORDER BY (department_id IS NOT DISTINCT FROM $3::int) DESC,
+              created_at DESC,
+              id DESC
      LIMIT 1`,
-    [shipmentId, status]
+    [shipmentId, status, departmentId || null]
   );
 
   if (existingEvent) {
@@ -136,7 +143,7 @@ const createShipment = ({
 
     // Беремо тариф для розрахунку вартості
     const { rows: [tariff] } = await client.query(
-      'SELECT * FROM tariffs WHERE id = $1', [tariffId]
+      'SELECT * FROM tariffs WHERE id = $1 AND deleted_at IS NULL', [tariffId]
     );
     if (!tariff) throw new Error('Тариф не знайдено');
 
@@ -151,6 +158,16 @@ const createShipment = ({
       [originDeptId, destDeptId]
     );
     if (!departments) throw createError(400, "Відділення відправки або призначення не знайдено");
+
+    const tariffMatchesShipment =
+      tariff.city_from === departments.origin_city
+      && tariff.city_to === departments.dest_city
+      && tariff.shipment_type === shipmentType
+      && tariff.size_category === sizeCategory;
+
+    if (!tariffMatchesShipment) {
+      throw createError(400, "Обраний тариф не відповідає маршруту, типу або розміру відправлення");
+    }
 
     const declaredValueNum = Number(declaredValue || 0);
     const weightKgNum = Number(weightKg);
@@ -312,10 +329,7 @@ const getShipmentsByDepartment = (departmentId, filters = {}) => {
      JOIN users receiver      ON receiver.id = s.receiver_id
      JOIN departments origin   ON origin.id = s.origin_dept_id
      JOIN departments dest     ON dest.id = s.dest_dept_id
-     WHERE (
-         s.current_dept_id = $1
-         OR (s.dest_dept_id = $1 AND s.status = 'in_transit')
-       )
+     WHERE s.current_dept_id = $1
        AND ($2::shipment_status IS NULL OR s.status = $2::shipment_status)
        AND ($3::varchar IS NULL OR s.tracking_number ILIKE '%' || $3 || '%')
        AND (
@@ -425,24 +439,45 @@ const getAllShipments = (filters = {}) => {
 };
 
 // app.current_user_id потрібен для тригера fn_log_status_change
-const changeShipmentStatus = (id, { status, operatorId, departmentId, notes }) =>
+const changeShipmentStatus = (id, {
+  status,
+  operatorId,
+  departmentId,
+  currentDeptId,
+  eventDepartmentId,
+  notes,
+  extraEvents = [],
+}) =>
   db.tx(async (client) => {
     if (operatorId) {
       await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(operatorId)]);
     }
+
+    for (const event of extraEvents) {
+      await ensureProcessingEvent(client, {
+        shipmentId: id,
+        departmentId: event.departmentId,
+        operatorId,
+        status: event.status,
+        notes: event.notes,
+      });
+    }
+
+    const nextCurrentDeptId = currentDeptId || departmentId;
+    const processingDepartmentId = eventDepartmentId || nextCurrentDeptId;
 
     const { rows: [updated] } = await client.query(
       `UPDATE shipments
        SET status = $2, current_dept_id = $3
        WHERE id = $1
        RETURNING *`,
-      [id, status, departmentId]
+      [id, status, nextCurrentDeptId]
     );
 
     if (updated) {
       await ensureProcessingEvent(client, {
         shipmentId: updated.id,
-        departmentId,
+        departmentId: processingDepartmentId,
         operatorId,
         status,
         notes,

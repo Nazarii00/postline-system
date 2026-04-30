@@ -70,10 +70,6 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute element={<CourierDeliveryPage/>} allowedRoles={['operator', 'courier']} />
       },
       {
-        path: 'routes',
-        element: <ProtectedRoute element={<RoutesPage />} allowedRoles={['operator']} />
-      },
-      {
         path: 'shipment/:id',                                          // ← додано
         element: <ProtectedRoute element={<ShipmentDetailPage />} allowedRoles={['operator']} />
       },
@@ -94,6 +90,7 @@ export const router = createBrowserRouter([
       { path: 'operators', element: <OperatorsPage /> },
       { path: 'offices', element: <OfficesPage /> },
       { path: 'tariffs', element: <ControlTariffsPage /> },
+      { path: 'routes', element: <RoutesPage /> },
       { path: 'reports', element: <ReportsPage /> },
       { path: 'shipments', element: <AllShipmentsPage /> },
       { path: 'shipment/:id', element: <ShipmentDetailPage /> },

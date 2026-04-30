@@ -3,6 +3,7 @@ const {
   LIMITS,
   optionalEnumQuery,
   optionalIdQuery,
+  optionalBooleanQuery,
   optionalTextBody,
   requiredEnumBody,
   requiredIdBody,
@@ -20,7 +21,7 @@ const createCourierDeliveryValidation = [
 ];
 
 const updateCourierDeliveryStatusValidation = [
-  requiredEnumBody("status", "Статус", ["delivered", "failed"]),
+  requiredEnumBody("status", "Статус", ["in_progress", "delivered", "failed"]),
   body("failureReason")
     .if(body("status").equals("failed"))
     .trim()
@@ -35,6 +36,7 @@ const listCourierDeliveriesValidation = [
   optionalIdQuery("shipmentId", "ID відправлення"),
   optionalIdQuery("courierId", "ID кур'єра"),
   optionalEnumQuery("status", "Статус", ["assigned", "in_progress", "delivered", "failed"]),
+  optionalBooleanQuery("confirmedOnly", "confirmedOnly"),
 ];
 
 module.exports = {

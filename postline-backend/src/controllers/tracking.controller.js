@@ -48,7 +48,12 @@ const getTrackingHandler = async (req, res, next) => {
       isAlert: false,
     }));
 
-    if (parcel.is_courier && parcel.failed_attempts > 0) {
+    const hasUnresolvedCourierFailure =
+      parcel.is_courier
+      && Number(parcel.failed_attempts || 0) > 0
+      && parcel.status !== "delivered";
+
+    if (hasUnresolvedCourierFailure) {
       timeline.push({
         status: "Невдала спроба доставки",
         date: null,

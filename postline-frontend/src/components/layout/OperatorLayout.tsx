@@ -5,7 +5,6 @@ import {
   PlusCircle,
   RefreshCcw,
   Truck,
-  Map,
   LogOut,
   Menu,
   X,
@@ -25,7 +24,6 @@ const navigation: NavigationItem[] = [
   { name: 'Нова реєстрація', path: '/operator/new-shipment', icon: <PlusCircle size={20} />, roles: ['operator'] },
   { name: 'Зміна статусу', path: '/operator/status-change', icon: <RefreshCcw size={20} />, roles: ['operator'] },
   { name: "Кур'єрська доставка", path: '/operator/courier-delivery', icon: <Truck size={20} />, roles: ['operator', 'courier'] },
-  { name: 'Маршрути', path: '/operator/routes', icon: <Map size={20} />, roles: ['operator'] },
 ];
 
 const getRoleLabel = (role?: Role) => {

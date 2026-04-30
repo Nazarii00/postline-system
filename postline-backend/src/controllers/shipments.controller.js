@@ -13,7 +13,7 @@ const {
 } = require("../repositories/shipments.repository");
 
 const { findOrCreateUserByPhone, findUserById } = require("../repositories/users.repository");
-const { getRouteByDepartments } = require("../repositories/routes.repository");
+const { getRouteByDepartments, getRouteStops } = require("../repositories/routes.repository");
 const { listCourierDeliveries } = require("../repositories/courier.repository");
 
 const getOperatorDepartmentId = async (operatorId) => {
@@ -21,36 +21,218 @@ const getOperatorDepartmentId = async (operatorId) => {
   return operator?.department_id ? Number(operator.department_id) : null;
 };
 
-const allowedStatusTransitions = {
-  accepted: ["sorting", "cancelled"],
-  sorting: ["in_transit", "returned"],
-  in_transit: ["arrived", "returned"],
-  arrived: ["ready_for_pickup", "returned"],
-  ready_for_pickup: ["delivered", "returned"],
-  delivered: [],
-  returned: [],
-  cancelled: [],
+const terminalStatuses = new Set(["delivered", "returned", "cancelled"]);
+
+const normalizeDepartmentId = (value) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
 };
 
-const destinationStatuses = new Set(["arrived", "ready_for_pickup", "delivered"]);
+const formatDepartmentPoint = (point) =>
+  [point?.city, point?.address].filter(Boolean).join(", ");
 
-const canTransitionStatus = (currentStatus, nextStatus) =>
-  (allowedStatusTransitions[currentStatus] || []).includes(nextStatus);
+const appendPoint = (points, point) => {
+  const id = normalizeDepartmentId(point?.id);
+  if (!id || points.some((existing) => existing.id === id)) return;
 
-const getDepartmentForStatus = (shipment, nextStatus) => {
-  if (destinationStatuses.has(nextStatus)) {
-    return Number(shipment.dest_dept_id);
+  points.push({
+    id,
+    city: point.city || null,
+    address: point.address || null,
+  });
+};
+
+const getShipmentRoutePoints = async (shipment) => {
+  const points = [];
+  appendPoint(points, {
+    id: shipment.origin_dept_id,
+    city: shipment.origin_city,
+    address: shipment.origin_address,
+  });
+
+  if (shipment.route_id) {
+    const routeStops = await getRouteStops(shipment.route_id);
+    for (const stop of routeStops) {
+      appendPoint(points, {
+        id: stop.id,
+        city: stop.city,
+        address: stop.address,
+      });
+    }
   }
 
-  return Number(shipment.current_dept_id || shipment.origin_dept_id);
+  appendPoint(points, {
+    id: shipment.dest_dept_id,
+    city: shipment.dest_city,
+    address: shipment.dest_address,
+  });
+
+  return points;
+};
+
+const getRouteProgress = async (shipment) => {
+  const points = await getShipmentRoutePoints(shipment);
+  const currentDeptId = normalizeDepartmentId(shipment.current_dept_id)
+    || normalizeDepartmentId(shipment.origin_dept_id);
+  const currentIndex = Math.max(
+    0,
+    points.findIndex((point) => point.id === currentDeptId)
+  );
+  const currentPoint = points[currentIndex] || points[0] || null;
+  const nextPoint = points[currentIndex + 1] || null;
+  const destinationId = normalizeDepartmentId(shipment.dest_dept_id);
+
+  return {
+    points,
+    currentPoint,
+    nextPoint,
+    currentDeptId,
+    destinationId,
+    isAtDestination: Boolean(currentDeptId && destinationId && currentDeptId === destinationId),
+  };
+};
+
+const mergeNotes = (...parts) =>
+  parts
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter(Boolean)
+    .join(" ");
+
+const buildStatusTransitionPlan = async (shipment, nextStatus, rawNotes) => {
+  if (terminalStatuses.has(shipment.status)) {
+    return { allowed: false, message: "Фінальний статус відправлення вже встановлено" };
+  }
+
+  const progress = await getRouteProgress(shipment);
+  const currentDeptId = progress.currentDeptId;
+  const currentPoint = progress.currentPoint;
+  const nextPoint = progress.nextPoint;
+  const destinationId = progress.destinationId;
+
+  const plan = ({
+    status = nextStatus,
+    requiredDepartmentId = currentDeptId,
+    currentDepartmentId = currentDeptId,
+    eventDepartmentId = currentDeptId,
+    notes = rawNotes,
+    extraEvents = [],
+  }) => ({
+    allowed: true,
+    status,
+    requiredDepartmentId,
+    currentDepartmentId,
+    eventDepartmentId,
+    notes,
+    extraEvents,
+  });
+
+  if (nextStatus === "returned" && ["sorting", "in_transit", "arrived", "ready_for_pickup"].includes(shipment.status)) {
+    return plan({
+      currentDepartmentId: currentDeptId,
+      eventDepartmentId: currentDeptId,
+      notes: mergeNotes("Відправлення повертається.", rawNotes),
+    });
+  }
+
+  if (shipment.status === "accepted" && nextStatus === "sorting") {
+    return plan({
+      notes: mergeNotes("Відправлення передано на сортування.", rawNotes),
+    });
+  }
+
+  if (shipment.status === "sorting" && nextStatus === "in_transit") {
+    const targetPoint = nextPoint || currentPoint;
+    return plan({
+      requiredDepartmentId: currentDeptId,
+      currentDepartmentId: targetPoint?.id || currentDeptId,
+      eventDepartmentId: currentDeptId,
+      notes: mergeNotes(
+        targetPoint && targetPoint.id !== currentDeptId
+          ? `Відправлення прямує до наступної точки маршруту: ${formatDepartmentPoint(targetPoint)}.`
+          : "Відправлення передано до міжміського транспортування.",
+        rawNotes
+      ),
+    });
+  }
+
+  if (shipment.status === "in_transit" && nextStatus === "in_transit") {
+    if (progress.isAtDestination) {
+      return {
+        allowed: false,
+        message: "Відправлення вже у кінцевому відділенні. Наступний статус має бути arrived",
+      };
+    }
+
+    if (!nextPoint) {
+      return {
+        allowed: false,
+        message: "Для відправлення не знайдено наступну точку маршруту",
+      };
+    }
+
+    return plan({
+      requiredDepartmentId: currentDeptId,
+      currentDepartmentId: nextPoint.id,
+      eventDepartmentId: currentDeptId,
+      extraEvents: [
+        {
+          status: "sorting",
+          departmentId: currentDeptId,
+          notes: mergeNotes(
+            `Відправлення оброблено у проміжному відділенні: ${formatDepartmentPoint(currentPoint)}.`,
+            rawNotes
+          ),
+        },
+      ],
+      notes: mergeNotes(
+        `Після транзитної обробки відправлення прямує до наступної точки маршруту: ${formatDepartmentPoint(nextPoint)}.`,
+        rawNotes
+      ),
+    });
+  }
+
+  if (shipment.status === "in_transit" && nextStatus === "arrived") {
+    if (!progress.isAtDestination) {
+      return {
+        allowed: false,
+        message: "Відправлення ще не досягло кінцевого відділення. Спочатку обробіть проміжну точку маршруту",
+      };
+    }
+
+    return plan({
+      requiredDepartmentId: destinationId,
+      currentDepartmentId: destinationId,
+      eventDepartmentId: destinationId,
+      notes: mergeNotes("Відправлення прибуло до кінцевого відділення.", rawNotes),
+    });
+  }
+
+  if (shipment.status === "arrived" && nextStatus === "ready_for_pickup") {
+    return plan({
+      requiredDepartmentId: destinationId,
+      currentDepartmentId: destinationId,
+      eventDepartmentId: destinationId,
+      notes: mergeNotes("Відправлення готове до видачі отримувачу.", rawNotes),
+    });
+  }
+
+  if (shipment.status === "ready_for_pickup" && nextStatus === "delivered") {
+    return plan({
+      requiredDepartmentId: destinationId,
+      currentDepartmentId: destinationId,
+      eventDepartmentId: destinationId,
+      notes: mergeNotes("Відправлення видано отримувачу.", rawNotes),
+    });
+  }
+
+  return {
+    allowed: false,
+    message: `Недопустимий перехід статусу: ${shipment.status} -> ${nextStatus}`,
+  };
 };
 
 const canDepartmentAccessShipment = (departmentId, shipment) =>
-  Number(shipment.current_dept_id) === Number(departmentId)
-  || (
-    shipment.status === "in_transit"
-    && Number(shipment.dest_dept_id) === Number(departmentId)
-  );
+  Number(shipment.current_dept_id) === Number(departmentId);
 
 const canAccessShipment = async (user, shipment) => {
   if (!user || !shipment) return false;
@@ -247,28 +429,36 @@ const changeStatusHandler = async (req, res, next) => {
       return res.status(404).json({ message: "Відправлення не знайдено" });
     }
 
-    if (!canTransitionStatus(shipment.status, status)) {
-      return res.status(400).json({
-        message: `Недопустимий перехід статусу: ${shipment.status} -> ${status}`,
-      });
-    }
-
     const actorDepartmentId = req.user.role === "operator"
       ? await getOperatorDepartmentId(req.user.sub)
       : req.user.departmentId || null;
 
-    const departmentId = getDepartmentForStatus(shipment, status);
+    const transitionPlan = await buildStatusTransitionPlan(shipment, status, notes);
+    if (!transitionPlan.allowed) {
+      return res.status(400).json({ message: transitionPlan.message });
+    }
 
     if (req.user.role === "operator" && !actorDepartmentId) {
       return res.status(400).json({ message: "Оператору не призначено відділення" });
     }
 
     // Перевірка що відправлення належить відділенню оператора (Req7)
-    if (req.user.role === 'operator' && Number(actorDepartmentId) !== Number(departmentId)) {
+    if (
+      req.user.role === 'operator'
+      && Number(actorDepartmentId) !== Number(transitionPlan.requiredDepartmentId)
+    ) {
       return res.status(403).json({ message: "Відправлення не належить вашому відділенню" });
     }
 
-    const updated = await changeShipmentStatus(id, { status, operatorId, departmentId, notes });
+    const updated = await changeShipmentStatus(id, {
+      status: transitionPlan.status,
+      operatorId,
+      departmentId: transitionPlan.currentDepartmentId,
+      currentDeptId: transitionPlan.currentDepartmentId,
+      eventDepartmentId: transitionPlan.eventDepartmentId,
+      notes: transitionPlan.notes,
+      extraEvents: transitionPlan.extraEvents,
+    });
 
     return res.status(200).json({ data: updated, message: "Статус успішно оновлено" });
   } catch (error) {

@@ -26,6 +26,7 @@ export type CourierDelivery = {
   shipment_id: number;
   courier_id: number | null;
   status: CourierDeliveryStatus;
+  notes?: string | null;
   to_address: string;
   tracking_number: string;
   receiver_name: string;

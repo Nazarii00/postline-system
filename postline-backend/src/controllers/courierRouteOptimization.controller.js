@@ -5,6 +5,10 @@ const {
 } = require("../services/maps.service");
 const { assertMapboxQuotaAvailable } = require("../services/mapboxQuota.service");
 const { findUserById } = require("../repositories/users.repository");
+const {
+  ROUTE_NOTE_MARKER,
+  findActiveConfirmedRouteForCourier,
+} = require("../repositories/courierRoutes.repository");
 
 const createError = (status, message) => {
   const error = new Error(message);
@@ -44,6 +48,7 @@ const fetchCourierDeliveries = (deliveryIds) =>
             cd.shipment_id,
             cd.to_address,
             cd.status,
+            cd.notes,
             s.tracking_number,
             s.current_dept_id,
             s.dest_dept_id,
@@ -74,6 +79,14 @@ const optimizeCourierDeliveriesRouteHandler = async (req, res, next) => {
 
     if (req.user.role === "courier" && Number(req.user.sub) !== courierId) {
       throw createError(403, "Кур'єр може оптимізувати тільки власний маршрут");
+    }
+
+    const activeRoute = await findActiveConfirmedRouteForCourier(courierId);
+    if (activeRoute) {
+      throw createError(
+        409,
+        "У цього кур'єра вже є активний підтверджений маршрут. Завершіть поточні доставки перед створенням нового."
+      );
     }
 
     const rows = await fetchCourierDeliveries(deliveryIds);
@@ -112,13 +125,18 @@ const optimizeCourierDeliveriesRouteHandler = async (req, res, next) => {
       throw createError(400, "Оптимізувати можна тільки доставки зі статусом assigned");
     }
 
+    if (deliveries.some((delivery) => delivery.notes?.includes(ROUTE_NOTE_MARKER))) {
+      throw createError(400, "Одна або кілька доставок уже мають підтверджений маршрут");
+    }
+
     await assertMapboxQuotaAvailable(deliveries.length + 2);
 
-    const start = await geocodeAddress(startAddress);
+    const routeCity = deliveries[0]?.dest_city || deliveries[0]?.courier_city || null;
+    const start = await geocodeAddress(startAddress, { city: routeCity });
     const stops = await Promise.all(
       deliveries.map(async (delivery) => ({
         delivery,
-        geocoded: await geocodeAddress(delivery.to_address),
+        geocoded: await geocodeAddress(delivery.to_address, { city: delivery.dest_city }),
       }))
     );
 
